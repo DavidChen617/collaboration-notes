@@ -33,6 +33,23 @@ public sealed class NoteEndpointTests(FunctionalTestWebAppFactory factory)
     }
 
     [Fact]
+    public async Task GivenFirstTimeUser_WhenCallingNotesWithoutEverProvisioningExplicitly_ThenAppUserIsAutoCreatedAndTheCallSucceeds()
+    {
+        // Regression test: a real user's very first call after login used to be a random Notes
+        // endpoint, not the throwaway /api/test/app-user endpoint - AppUser provisioning must
+        // happen for any protected endpoint, not just that one. Deliberately does NOT call
+        // /api/test/app-user first (unlike CreateProvisionedClientAsync), to prove the
+        // OnTokenValidated hook provisions the AppUser on its own.
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Bearer", TestTokens.CreateToken(Guid.NewGuid().ToString()));
+
+        var response = await client.GetAsync(NotesEndpoint);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GivenOwnerOnly_WhenListingNotes_ThenOnlyTheCallersOwnNotesAreReturned()
     {
         var owner = await CreateProvisionedClientAsync();
