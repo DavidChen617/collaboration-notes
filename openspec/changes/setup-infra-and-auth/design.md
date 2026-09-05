@@ -1,6 +1,6 @@
 ## Context
 
-見 proposal.md 的 Why。目前狀態：cluster 只有一個指向空 `deploy/k8s` 的 ArgoCD `Application`——還沒有任何 workload。限制條件：2 節點 cluster（餘裕有限）、Cloudflare Tunnel 是唯一的 ingress 路徑、玩具/學習專案（非商業）、後端技術棧已定為 .NET 10 + Dapper + Postgres。
+見 proposal.md 的 Why。目前狀態：cluster 只有一個指向空 `infra/k8s` 的 ArgoCD `Application`——還沒有任何 workload。限制條件：2 節點 cluster（餘裕有限）、Cloudflare Tunnel 是唯一的 ingress 路徑、玩具/學習專案（非商業）、後端技術棧已定為 .NET 10 + Dapper + Postgres。
 
 ## Goals / Non-Goals
 
@@ -107,10 +107,10 @@ Dapper 沒有像 EF Core 那樣內建的 migration 機制，手動跑 SQL script
 3. 部署 SigNoz。
 4. 部署 .NET 10 API（JWT Bearer 設定指向該 Realm，OTLP 匯出設定指向 SigNoz）。
 5. 部署 nginx（ingress-nginx controller），建立 Ingress 規則：`api.<domain>` → API Service、`auth.<domain>` → Keycloak Service。
-6. 讓 ArgoCD 的 `Application` 指向已經有內容的 `deploy/k8s`，讓它同步。
+6. 讓 ArgoCD 的 `Application` 指向已經有內容的 `infra/k8s`，讓它同步。
 7. 在既有的 Cloudflare Tunnel 設定裡，把單一目標指向 nginx 的 Service（不再是分別指向各個內部 Service）。
 
-Rollback：ArgoCD 的 `prune: true` + `selfHeal: true` 代表把 manifests 從 `deploy/k8s` 移除、讓 ArgoCD 重新同步，就會把對應資源撤掉。Postgres 的資料本身不在這個機制的保護範圍內——沒有先備份就不該對它做任何破壞性 rollback，不過這個建置階段的 change 還沒有任何使用者資料需要擔心。
+Rollback：ArgoCD 的 `prune: true` + `selfHeal: true` 代表把 manifests 從 `infra/k8s` 移除、讓 ArgoCD 重新同步，就會把對應資源撤掉。Postgres 的資料本身不在這個機制的保護範圍內——沒有先備份就不該對它做任何破壞性 rollback，不過這個建置階段的 change 還沒有任何使用者資料需要擔心。
 
 ## Open Questions
 

@@ -1,7 +1,7 @@
 ## 1. 密鑰管理腳本
 
 - [ ] 1.1 撰寫 `scripts/apply-secrets.sh`：讀取伺服器端指定路徑的 `.env` 檔案，用 `kubectl create secret generic ... --from-env-file --dry-run=client -o yaml | kubectl apply -f -` 的方式 upsert 一個 k8s Secret
-- [ ] 1.2 在 repo 說明文件（例如 README 或 `deploy/` 底下的說明檔）記錄：`.env` 檔案該放在伺服器的哪個路徑、包含哪些變數（PayPal sandbox key、AI provider key、Keycloak client secret 等）、什麼時候需要重新執行這支腳本
+- [ ] 1.2 在 repo 說明文件（例如 README 或 `infra/` 底下的說明檔）記錄：`.env` 檔案該放在伺服器的哪個路徑、包含哪些變數（PayPal sandbox key、AI provider key、Keycloak client secret 等）、什麼時候需要重新執行這支腳本
 - [ ] 1.3 在乾淨的測試環境手動跑一次腳本，驗證產生的 k8s Secret 內容跟 `.env` 一致
 
 ## 2. PR Workflow（測試）
@@ -13,10 +13,10 @@
 
 ## 3. Main Workflow（建置、推送、更新部署）
 
-- [ ] 3.1 新增 `.github/workflows/deploy.yml`，觸發條件為 push 到 main、且排除 `deploy/k8s/**` 路徑
+- [ ] 3.1 新增 `.github/workflows/deploy.yml`，觸發條件為 push 到 main、且排除 `infra/k8s/**` 路徑
 - [ ] 3.2 實作建置 `CoNotes.Api` container image、以 git SHA 當 tag，推送到 ghcr.io
 - [ ] 3.3 確認 repo 的 Actions 設定已開啟 `contents: write` 權限，讓 workflow 能用 `GITHUB_TOKEN` commit 回 main
-- [ ] 3.4 實作更新 `deploy/k8s` 底下 API Deployment manifest 的 image tag、commit 回 main 的步驟
+- [ ] 3.4 實作更新 `infra/k8s` 底下 API Deployment manifest 的 image tag、commit 回 main 的步驟
 - [ ] 3.5 驗證合併一個改動 `CoNotes.Api` 的 PR 後，main workflow 會自動跑完建置、推送、commit 這三步，且不會觸發第二次 workflow（驗證 `paths-ignore` 生效）
 - [ ] 3.6 驗證 ArgoCD 在 manifest 被更新後，`selfHeal` 自動同步、`CoNotes.Api` 的 pod 滾動更新到新版本
 

@@ -1,4 +1,4 @@
-# Mirrors deploy/k8s/keycloak/realm-export/conotes-realm.json (the repo's
+# Mirrors infra/k8s/keycloak/realm-export/conotes-realm.json (the repo's
 # source-of-truth export, per design.md decision #10) so Keycloak can import it
 # on startup via --import-realm. Keep the two in sync.
 apiVersion: v1

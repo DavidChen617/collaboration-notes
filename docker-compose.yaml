@@ -10,7 +10,7 @@ services:
       KEYCLOAK_PASSWORD: password
     volumes:
       - pgdata:/var/lib/postgresql/18/docker
-      - ./docker/postgres-init:/docker-entrypoint-initdb.d
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -46,7 +46,7 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
     volumes:
-      - ./deploy/k8s/keycloak/realm-export:/opt/keycloak/data/import
+      - ./infra/k8s/keycloak/realm-export:/opt/keycloak/data/import
     command: ["start-dev", "--import-realm"]
     depends_on:
       postgres:

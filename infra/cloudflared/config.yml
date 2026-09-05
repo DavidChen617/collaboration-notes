@@ -1,7 +1,7 @@
 # Cloudflare Tunnel ingress config (see design.md Decision 9): the tunnel now
 # points at a single destination, nginx's Service, instead of one hostname
 # mapping per internal Service. nginx's own Ingress rules (see
-# deploy/k8s/ingress/ingress.yaml) then route by hostname to the API or Keycloak.
+# infra/k8s/ingress/ingress.yaml) then route by hostname to the API or Keycloak.
 #
 # This file documents the intended config; applying it to the live tunnel is an
 # operational step (`cloudflared tunnel ...` / Cloudflare Zero Trust dashboard)

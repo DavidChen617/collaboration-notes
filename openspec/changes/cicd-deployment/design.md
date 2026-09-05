@@ -1,6 +1,6 @@
 ## Context
 
-見 proposal.md 的 Why。這個 change 是純工具鏈/部署流程變更，不涉及 DDD 的 Aggregate 邊界或 Domain Event（因此沒有「Aggregate 邊界」小節）——但仍然畫出完整的流程圖，說明這條 pipeline 實際怎麼運作。建立在既有的 `deploy/argocd/application.yaml`（`prune: true` + `selfHeal: true`）跟 `sample/` 範本裡四個測試專案的慣例之上。
+見 proposal.md 的 Why。這個 change 是純工具鏈/部署流程變更，不涉及 DDD 的 Aggregate 邊界或 Domain Event（因此沒有「Aggregate 邊界」小節）——但仍然畫出完整的流程圖，說明這條 pipeline 實際怎麼運作。建立在既有的 `infra/argocd/application.yaml`（`prune: true` + `selfHeal: true`）跟 `sample/` 範本裡四個測試專案的慣例之上。
 
 ## Goals / Non-Goals
 
@@ -28,13 +28,13 @@ sequenceDiagram
     participant Pages as GitHub Pages
 
     Dev->>GH: push 到 main（改動 CoNotes.Api 原始碼）
-    GH->>CI: 觸發 main workflow（deploy/k8s/** 的改動不會觸發，避免自我觸發）
+    GH->>CI: 觸發 main workflow（infra/k8s/** 的改動不會觸發，避免自我觸發）
     CI->>CI: 跑四種測試專案
     alt 測試失敗
         CI-->>Dev: 標記失敗，流程中止
     else 測試通過
         CI->>Registry: 建置並推送 CoNotes.Api image（tag = git SHA）
-        CI->>GH: 更新 deploy/k8s 的 image tag，commit 回 main
+        CI->>GH: 更新 infra/k8s 的 image tag，commit 回 main
         GH-->>ArgoCD: Git 內容變化
         ArgoCD->>K8s: selfHeal 自動同步，滾動更新 CoNotes.Api pod
         CI->>CI: 建置 CoNotes.Client
@@ -47,11 +47,11 @@ sequenceDiagram
 **1. PR 跟 main 用兩個獨立的 workflow：PR 只跑測試，main 才建置+推送+部署。**
 避免每次 PR 的 commit 都去建置/推送 image，浪費資源也沒必要——只有真的要合併進 main 的程式碼，才值得推一個 image 版本。
 
-**2. main workflow 的觸發條件排除 `deploy/k8s/**` 路徑的改動。**
-因為這個 workflow 自己會 commit 回 `deploy/k8s` 的 image tag，如果不排除，會造成「build → commit → 觸發 build → commit → ...」的無窮迴圈。
+**2. main workflow 的觸發條件排除 `infra/k8s/**` 路徑的改動。**
+因為這個 workflow 自己會 commit 回 `infra/k8s` 的 image tag，如果不排除，會造成「build → commit → 觸發 build → commit → ...」的無窮迴圈。
 
 **3. Image tag 用 git SHA，不是 `latest`。**
-`latest` 沒有辨識度，出問題時不知道部署的到底是哪個版本；用 SHA 當 tag，`deploy/k8s` 裡的 manifest 內容本身就直接對應到一個確切的 commit，方便追查。
+`latest` 沒有辨識度，出問題時不知道部署的到底是哪個版本；用 SHA 當 tag，`infra/k8s` 裡的 manifest 內容本身就直接對應到一個確切的 commit，方便追查。
 
 **4. Image registry 選 ghcr.io。**
 跟 repo 在同一個平台，GitHub Actions 用內建的 `GITHUB_TOKEN` 就能推送，不用額外申請帳號或存 registry 密碼。

@@ -14,7 +14,7 @@
 - 用 `golang-migrate` CLI 建立應用程式 Postgres 資料庫的 schema migration 機制（Dapper 沒有內建的 migration 工具）。
 - 部署 nginx（ingress-nginx）作為 cluster 內的反向代理／Ingress 進入點，依 hostname 路由到 API（`api.<domain>`）或 Keycloak（`auth.<domain>`）。
 - 讓現有的 Cloudflare Tunnel 改指向 nginx 這一個內部進入點，取代原本要分別對應多個 Service 的做法。
-- 讓既有的 ArgoCD Application（`deploy/argocd/application.yaml`）真正同步 `deploy/k8s` 底下的 manifests。
+- 讓既有的 ArgoCD Application（`infra/argocd/application.yaml`）真正同步 `infra/k8s` 底下的 manifests。
 
 ## Capabilities
 
@@ -27,7 +27,7 @@
 ## Impact
 
 - 新增的 stateful k8s workload：PostgreSQL、Redis、Keycloak、SigNoz。
-- 新的 repo 結構：`deploy/k8s/` 下的 manifests（Postgres、Redis、Keycloak、SigNoz、nginx、API）、`golang-migrate` 用的 migrations 目錄、以及一個新的 .NET 10 API 專案。
+- 新的 repo 結構：`infra/k8s/` 下的 manifests（Postgres、Redis、Keycloak、SigNoz、nginx、API）、`golang-migrate` 用的 migrations 目錄、以及一個新的 .NET 10 API 專案。
 - Cloudflare Tunnel 設定改為只指向 nginx，由 nginx 的 Ingress 規則分流到 API（`api.<domain>`）跟 Keycloak（`auth.<domain>`）。
-- ArgoCD 現在有真正的 manifests 可以同步到 `deploy/k8s`（先前是空的）。
+- ArgoCD 現在有真正的 manifests 可以同步到 `infra/k8s`（先前是空的）。
 - 不包含任何產品面功能（筆記、共編、AI Chat、金流）——這些都是後面獨立的 change。

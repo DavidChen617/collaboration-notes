@@ -1,6 +1,6 @@
 # Routes browser-facing traffic (via nginx, the cluster's single ingress point —
 # see design.md Decision 9) to the API and Keycloak by hostname. Cloudflare Tunnel
-# points only at nginx's Service; see deploy/cloudflared/config.yml.
+# points only at nginx's Service; see infra/cloudflared/config.yml.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
