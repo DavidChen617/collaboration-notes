@@ -12,11 +12,13 @@
 
 ## 3. Infrastructure（`CoNotes.Infrastructure` + 叢集基礎設施）
 
-- [ ] 3.1 實作 `IAppUserRepository` 的 Dapper 版本（`AppUserRepository`），透過 `IDbConnectionFactory` 取得連線
-- [ ] 3.2 整合測試（Testcontainers 起真的 Postgres）：`GivenPostgresDatabase_WhenUpsertingSameKeycloakSubTwice_ThenSecondCallReturnsSameAppUserRow`
+> 開發環境備註：這裡沒有可用的 Docker daemon（容器啟動後連 overlayfs mount 都沒有權限）、也沒有 kubectl/k8s cluster。3.4／3.5 改用本機直接 apt 裝的 PostgreSQL 16 手動驗證（`CREATE ROLE`/`CREATE DATABASE`、`migrate up`/`down`/`version`），驗證的是 migration script 與 repository SQL 本身正確，不是實際 k8s 上的 Postgres。3.2 需要的 Testcontainers 因此無法執行，改用一支未納入 repo 的 scratch console app 手動打過一次 `AppUserRepository`（insert + lookup）確認邏輯正確，之後有 docker 的環境應把 3.2 的 Testcontainers 測試按原計畫補上。3.3/3.6/3.9/3.10 之後只寫 manifest，不勾選「部署後確認」的部分。
+
+- [x] 3.1 實作 `IAppUserRepository` 的 Dapper 版本（`AppUserRepository`），透過 `IDbConnectionFactory` 取得連線
+- [ ] 3.2 整合測試（Testcontainers 起真的 Postgres）：`GivenPostgresDatabase_WhenUpsertingSameKeycloakSubTwice_ThenSecondCallReturnsSameAppUserRow`（阻塞：此環境沒有可用的 Docker daemon，見下方說明）
 - [ ] 3.3 撰寫 Postgres 的 k8s manifest（Deployment/StatefulSet + Service + PVC），部署後用 `kubectl get pods` 確認 pod 為 Running 狀態
-- [ ] 3.4 建立 `app`、`keycloak` 兩個 database，並確認可分別用對應帳號連線成功
-- [ ] 3.5 安裝 `golang-migrate` CLI，撰寫第一版 migration 建立 `AppUser` table，執行後用 `migrate version` 確認已套用到最新版本；驗證 down/up 都能重複執行不報錯
+- [x] 3.4 建立 `app`、`keycloak` 兩個 database，並確認可分別用對應帳號連線成功
+- [x] 3.5 安裝 `golang-migrate` CLI，撰寫第一版 migration 建立 `AppUser` table，執行後用 `migrate version` 確認已套用到最新版本；驗證 down/up 都能重複執行不報錯
 - [ ] 3.6 撰寫 Keycloak 的 k8s manifest（Deployment + Service），指向 `keycloak` database，部署後確認 pod Running 且能連上該 database
 - [ ] 3.7 手動建立 Realm 與一個開啟 PKCE 的 public client，設定合法的 redirect URI；匯出成 realm-export JSON 存進 repo，並驗證用此檔案可重新匯入出一致的 Realm
 - [ ] 3.8 手動走一次 Keycloak 登入頁面完成登入，確認可取得 access token
