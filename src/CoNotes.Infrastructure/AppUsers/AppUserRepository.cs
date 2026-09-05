@@ -13,7 +13,7 @@ internal sealed class AppUserRepository(IDbConnectionFactory dbConnectionFactory
             select
                 id as {nameof(AppUserRow.Id)},
                 keycloak_sub as {nameof(AppUserRow.KeycloakSub)},
-                created_at as {nameof(AppUserRow.CreatedAt)}
+                created_at as {nameof(AppUserRow.CreatedOnUtc)}
             from app_users
             where keycloak_sub = @KeycloakSub;
             """,
@@ -24,7 +24,7 @@ internal sealed class AppUserRepository(IDbConnectionFactory dbConnectionFactory
 
         return row is null
             ? null
-            : AppUser.Rehydrate(row.Id, row.KeycloakSub, row.CreatedAt);
+            : AppUser.Rehydrate(row.Id, row.KeycloakSub, row.CreatedOnUtc);
     }
 
     public async Task<Result> AddAsync(AppUser appUser, CancellationToken ct)
@@ -34,7 +34,7 @@ internal sealed class AppUserRepository(IDbConnectionFactory dbConnectionFactory
         var cmd = new CommandDefinition(
             $"""
             insert into app_users (id, keycloak_sub, created_at)
-            values (@{nameof(appUser.Id)}, @{nameof(appUser.KeycloakSub)}, @{nameof(appUser.CreatedAt)});
+            values (@{nameof(appUser.Id)}, @{nameof(appUser.KeycloakSub)}, @{nameof(appUser.CreatedOnUtc)});
             """,
             appUser,
             cancellationToken: ct);
@@ -44,5 +44,5 @@ internal sealed class AppUserRepository(IDbConnectionFactory dbConnectionFactory
         return Result.Success();
     }
 
-    private sealed record AppUserRow(Guid Id, string KeycloakSub, DateTime CreatedAt);
+    private sealed record AppUserRow(Guid Id, string KeycloakSub, DateTime CreatedOnUtc);
 }

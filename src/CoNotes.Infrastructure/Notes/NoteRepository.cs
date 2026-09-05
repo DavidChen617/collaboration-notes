@@ -16,8 +16,8 @@ internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) :
                 owner_app_user_id as {nameof(NoteRow.OwnerAppUserId)},
                 title as {nameof(NoteRow.Title)},
                 content as {nameof(NoteRow.Content)},
-                created_at as {nameof(NoteRow.CreatedAt)},
-                updated_at as {nameof(NoteRow.UpdatedAt)}
+                created_at as {nameof(NoteRow.CreatedOnUtc)},
+                updated_at as {nameof(NoteRow.UpdatedOnUtc)}
             from notes
             where id = @NoteId;
             """,
@@ -28,7 +28,7 @@ internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) :
 
         return row is null
             ? null
-            : NoteAggregate.Rehydrate(row.Id, row.OwnerAppUserId, row.Title, row.Content, row.CreatedAt, row.UpdatedAt);
+            : NoteAggregate.Rehydrate(row.Id, row.OwnerAppUserId, row.Title, row.Content, row.CreatedOnUtc, row.UpdatedOnUtc);
     }
 
     public async Task<Result> AddAsync(NoteAggregate note, CancellationToken ct)
@@ -39,7 +39,7 @@ internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) :
             $"""
             insert into notes (id, owner_app_user_id, title, content, created_at, updated_at)
             values (@{nameof(note.Id)}, @{nameof(note.OwnerAppUserId)}, @{nameof(note.Title)},
-                    @{nameof(note.Content)}, @{nameof(note.CreatedAt)}, @{nameof(note.UpdatedAt)});
+                    @{nameof(note.Content)}, @{nameof(note.CreatedOnUtc)}, @{nameof(note.UpdatedOnUtc)});
             """,
             note,
             cancellationToken: ct);
@@ -58,7 +58,7 @@ internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) :
             update notes
             set title = @{nameof(note.Title)},
                 content = @{nameof(note.Content)},
-                updated_at = @{nameof(note.UpdatedAt)}
+                updated_at = @{nameof(note.UpdatedOnUtc)}
             where id = @{nameof(note.Id)};
             """,
             note,
@@ -91,7 +91,7 @@ internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) :
         Guid OwnerAppUserId,
         string Title,
         string Content,
-        DateTime CreatedAt,
-        DateTime UpdatedAt
+        DateTime CreatedOnUtc,
+        DateTime UpdatedOnUtc
     );
 }

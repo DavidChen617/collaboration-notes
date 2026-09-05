@@ -7,8 +7,8 @@ public sealed class Note : AggregateRoot
     public Guid OwnerAppUserId { get; private set; }
     public string Title { get; private set; } = null!;
     public string Content { get; private set; } = string.Empty;
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
+    public DateTime CreatedOnUtc { get; private set; }
+    public DateTime UpdatedOnUtc { get; private set; }
 
     private Note(
         Guid id,
@@ -23,8 +23,8 @@ public sealed class Note : AggregateRoot
         OwnerAppUserId = ownerAppUserId;
         Title = title;
         Content = content;
-        CreatedAt = createdAt;
-        UpdatedAt = updatedAt;
+        CreatedOnUtc = createdAt;
+        UpdatedOnUtc = updatedAt;
     }
 
     public static Note Create(Guid ownerAppUserId, string title, string content)
@@ -56,7 +56,7 @@ public sealed class Note : AggregateRoot
 
         Title = title;
         Content = content;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedOnUtc = DateTime.UtcNow;
 
         return Result.Success();
     }

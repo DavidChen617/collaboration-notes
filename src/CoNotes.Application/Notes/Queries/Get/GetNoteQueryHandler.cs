@@ -16,8 +16,8 @@ internal sealed class GetNoteQueryHandler(
                 owner_app_user_id as OwnerAppUserId,
                 title as Title,
                 content as Content,
-                created_at as CreatedAt,
-                updated_at as UpdatedAt
+                created_at as CreatedOnUtc,
+                updated_at as UpdatedOnUtc
             from notes
             where id = @NoteId
             """;
@@ -36,7 +36,7 @@ internal sealed class GetNoteQueryHandler(
         if (note.OwnerAppUserId != requestingAppUserId)
             return new Error("Note.Get", "使用者沒有權檢視這篇筆記!", ErrorType.BadRequest);
 
-        return new GetNoteDto(note.NoteId, note.Title, note.Content, note.CreatedAt, note.UpdatedAt);
+        return new GetNoteDto(note.NoteId, note.Title, note.Content, note.CreatedOnUtc, note.UpdatedOnUtc);
     }
 
     private sealed record NoteRow(
@@ -44,7 +44,7 @@ internal sealed class GetNoteQueryHandler(
         Guid OwnerAppUserId,
         string Title,
         string Content,
-        DateTime CreatedAt,
-        DateTime UpdatedAt
+        DateTime CreatedOnUtc,
+        DateTime UpdatedOnUtc
     );
 }

@@ -5,13 +5,13 @@ namespace CoNotes.Domain.AppUsers;
 public sealed class AppUser : AggregateRoot
 {
     public string KeycloakSub { get; private set; } = null!;
-    public DateTime CreatedAt { get; private set; }
+    public DateTime CreatedOnUtc { get; private set; }
 
     private AppUser(Guid id, string keycloakSub, DateTime createdAt)
     {
         Id = id;
         KeycloakSub = keycloakSub;
-        CreatedAt = createdAt;
+        CreatedOnUtc = createdAt;
     }
 
     public static AppUser Create(string keycloakSub)

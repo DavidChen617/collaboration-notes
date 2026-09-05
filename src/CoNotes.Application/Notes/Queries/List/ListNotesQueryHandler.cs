@@ -15,8 +15,8 @@ internal sealed class ListNotesQueryHandler(
                 id as NoteId,
                 title as Title,
                 content as Content,
-                created_at as CreatedAt,
-                updated_at as UpdatedAt
+                created_at as CreatedOnUtc,
+                updated_at as UpdatedOnUtc
             from notes
             where owner_app_user_id = @OwnerAppUserId
             """;
