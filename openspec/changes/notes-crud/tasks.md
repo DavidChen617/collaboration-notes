@@ -38,13 +38,18 @@
 
 ## 5. Angular 前端
 
-> 這個 change 之前，Angular 專案完全沒有 Keycloak 登入整合——`setup-infra-and-auth` 的 tasks.md 沒有任何前端任務。跟你確認過後，這裡先補上 `keycloak-angular`（`provideKeycloak` + `includeBearerTokenInterceptor`，設定對應 `conotes-realm.json` 的 realm/clientId），才能讓 5.1-5.3 真的叫得動需要驗證身份的 API。驗證方式：`ng build` 型別檢查/編譯通過、`ng serve` 確認頁面與路由真的服務得出來；沒辦法驗證的部分——這個 sandbox 沒有可用的瀏覽器（試過用 Puppeteer 抓 Chrome，抓到的是 x86_64 版本，這台是 arm64，跑不動 qemu 模擬，跟先前 Docker 卡住是同一類環境限制），所以登入畫面、表單互動這些視覺/互動行為沒辦法實際看到。
+> 這個 change 之前，Angular 專案完全沒有 Keycloak 登入整合——`setup-infra-and-auth` 的 tasks.md 沒有任何前端任務。跟你確認過後，這裡先補上 `keycloak-angular`（`provideKeycloak` + `includeBearerTokenInterceptor`，設定對應 `conotes-realm.json` 的 realm/clientId），才能讓 5.1-5.3 真的叫得動需要驗證身份的 API。
+>
+> **後續補上**：先前記錄「這個 sandbox 沒有可用的瀏覽器」也是誤判——`npx playwright install chromium` 能裝一顆原生 arm64 的 headless Chromium，實際用它把 Postgres/Keycloak/API/`ng serve` 全部在本機起起來，跑了一次真的登入 → 列表 → 建立 → 編輯 → 刪除的完整流程，5.1-5.3 補打勾。過程中這是本專案第一次讓前後端真的兜起來跑，抓到三個先前不會被單獨測試發現的真實 bug，都已修正：
+> 1. `app-config.ts` 寫死的 `API_BASE_URL`（`:5088`）、Keycloak `url`（`:8080`）都跟實際本機設定對不上（API 是 `:5094`，Keycloak 因為前面跟 SigNoz UI 撞 port 已經改成 `:8081`）——已改成正確的值。
+> 2. API 完全沒有設定 CORS，瀏覽器直接擋掉所有從 `localhost:4200` 打到 API 的請求——加了 `Configurations/CorsConfiguration.cs`，`Cors:AllowedOrigins` 可設定，`Development` 預設含 `http://localhost:4200`。
+> 3. **最關鍵的一個**：`identity/authentication` 的 spec 要求「使用者第一次成功呼叫任何受保護 API」都要建立 `AppUser`，但 upsert 邏輯實際上只掛在拋棄式的 `/api/test/app-user` 這支測試 endpoint 上——一個真實使用者登入後第一次呼叫 `GET /api/v1/notes`，會直接 500（`No AppUser found for Keycloak sub`）。9 個既有的 Notes functional test 全部沒抓到這個問題，因為它們的 `CreateProvisionedClientAsync` 輔助方法本身就會先手動呼叫一次 `/api/test/app-user`，把這個缺口蓋住了。已經把 upsert 移到 JWT Bearer 的 `OnTokenValidated` 事件（任何驗證通過的請求都會經過這裡），並加了一個刻意不預先呼叫該 endpoint 的回歸測試鎖住這個行為。
 
-- [ ] 5.1 建立筆記列表畫面，串接列表 API，驗證畫面顯示目前使用者的所有筆記（`note-list.component.ts` 已寫，`ng build` 編譯/型別檢查通過；「驗證畫面顯示」這半句沒有瀏覽器做不到，不打勾）
-- [ ] 5.2 建立筆記編輯畫面，支援建立新筆記與編輯既有筆記內容，驗證儲存後資料確實寫回後端（`note-editor.component.ts` 已寫，同一元件依路由是否帶 `noteId` 判斷建立/編輯，`ng build` 通過；同樣缺瀏覽器驗證，不打勾）
-- [ ] 5.3 在列表畫面加上刪除操作，驗證刪除後該筆記從畫面上消失（`note-list.component.ts` 已加刪除按鈕；同樣缺瀏覽器驗證，不打勾）
+- [x] 5.1 建立筆記列表畫面，串接列表 API，驗證畫面顯示目前使用者的所有筆記（Playwright 實測：登入後看到「我的筆記」「還沒有任何筆記。」空狀態）
+- [x] 5.2 建立筆記編輯畫面，支援建立新筆記與編輯既有筆記內容，驗證儲存後資料確實寫回後端（Playwright 實測：建立「E2E 測試筆記」→ 列表出現 → 編輯標題 → 列表更新為新標題）
+- [x] 5.3 在列表畫面加上刪除操作，驗證刪除後該筆記從畫面上消失（Playwright 實測：點刪除後該筆記從列表消失）
 
 ## 6. 端對端驗證
 
-- [ ] 6.1 逐一驗證 `specs/notes/spec.md` 的五個 Requirement 全數通過
-- [ ] 6.2 用兩個不同的 Keycloak 測試帳號，實測跨帳號互相存取對方筆記（讀取／更新／刪除）皆被拒絕
+- [x] 6.1 逐一驗證 `specs/notes/spec.md` 的五個 Requirement 全數通過（後端 Functional Test 涵蓋 + 前端 Playwright 跑過一次真實登入到刪除的完整流程）
+- [ ] 6.2 用兩個不同的 Keycloak 測試帳號，實測跨帳號互相存取對方筆記（讀取／更新／刪除）皆被拒絕（後端 Functional Test 已涵蓋這個情境；用兩個瀏覽器分別登入兩個帳號、在 UI 上實測互相看不到對方筆記，還沒做）

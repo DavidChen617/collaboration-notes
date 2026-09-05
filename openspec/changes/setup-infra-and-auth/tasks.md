@@ -51,6 +51,6 @@
 > 5.1/5.2 需要真的 k8s cluster 與對外網域，這個 sandbox 沒有，無法驗證。
 
 - [ ] 5.1 確認 ArgoCD Application 同步 `infra/k8s` 成功，所有 workload 狀態為 Synced/Healthy（阻塞：無 k8s cluster）
-- [ ] 5.2 從外部瀏覽器實測：`auth.<domain>` 可看到 Keycloak 登入頁；完成登入後，用取得的 token 呼叫 `api.<domain>` 的受保護 endpoint 可取得正常回應（真的外部網域／瀏覽器阻塞：無 k8s cluster／對外網域。但底層的登入→取得 token→呼叫受保護 endpoint 這條路，已經在本機用真的 Keycloak + 真的 API 完整跑過一次，見 3.8 的說明，全部正常回應；缺的只是「外部瀏覽器」跟「真的網域」這兩個環境條件）
-- [x] 5.3 逐一驗證 `specs/identity/authentication/spec.md` 的四個 Requirement 全數通過（四個 Requirement 分別對應 `AppUserEndpointTests`/`HealthEndpointTests` 裡的 6 個 functional test，全數通過；唯一沒驗證到的是真的瀏覽器 OIDC 登入導轉，見 5.2）
+- [ ] 5.2 從外部瀏覽器實測：`auth.<domain>` 可看到 Keycloak 登入頁；完成登入後，用取得的 token 呼叫 `api.<domain>` 的受保護 endpoint 可取得正常回應（「瀏覽器」這半句後來補上了——用 Playwright 裝的真實 headless Chromium，跑過一次 Angular SPA → Keycloak 登入頁 → 導回 SPA → 呼叫受保護 API 的完整瀏覽器流程，見 `notes-crud` tasks.md 第 5 節。仍然阻塞的只剩「真的外部網域」：這裡走的是 `localhost`，不是 `auth.<domain>`/`api.<domain>`，需要真的 k8s cluster + Cloudflare Tunnel 才能驗證）
+- [x] 5.3 逐一驗證 `specs/identity/authentication/spec.md` 的四個 Requirement 全數通過（四個 Requirement 分別對應 `AppUserEndpointTests`/`HealthEndpointTests` 裡的 6 個 functional test，全數通過。**後續補充**：這些測試當時全部透過 `/api/test/app-user` 明確觸發 upsert，掩蓋了一個真的 bug——`AppUser` 的建立其實只掛在這一支測試 endpoint 上，換成任何其他受保護 endpoint（例如 Notes）第一次呼叫都會 500。已修正為在 JWT Bearer 的 `OnTokenValidated` 事件觸發，任何受保護 endpoint 都適用，細節見 `notes-crud` tasks.md 第 5 節與 commit `45b1bbb`。真的瀏覽器 OIDC 導轉，見 5.2）
 - [x] 5.4 把部署順序與已知限制（單副本 Keycloak、共用 Postgres instance）記錄到 repo 說明文件，供之後重建環境參考（`infra/README.md`）
