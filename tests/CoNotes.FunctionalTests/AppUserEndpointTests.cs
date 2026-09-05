@@ -1,8 +1,6 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 
 namespace FunctionalTests;
@@ -41,7 +39,7 @@ public sealed class AppUserEndpointTests(FunctionalTestWebAppFactory factory)
     {
         var expiredTokenClient = factory.CreateClient();
         expiredTokenClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer", CreateToken(Guid.NewGuid().ToString(), expires: DateTime.UtcNow.AddMinutes(-5)));
+            "Bearer", TestTokens.CreateToken(Guid.NewGuid().ToString(), expires: DateTime.UtcNow.AddMinutes(-5)));
 
         var expiredResponse = await expiredTokenClient.PostAsync(Endpoint, content: null);
         Assert.Equal(HttpStatusCode.Unauthorized, expiredResponse.StatusCode);
@@ -49,7 +47,7 @@ public sealed class AppUserEndpointTests(FunctionalTestWebAppFactory factory)
         var wrongKey = new SymmetricSecurityKey("a-completely-different-signing-key-32bytes+"u8.ToArray());
         var invalidSignatureClient = factory.CreateClient();
         invalidSignatureClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer", CreateToken(Guid.NewGuid().ToString(), signingKey: wrongKey));
+            "Bearer", TestTokens.CreateToken(Guid.NewGuid().ToString(), signingKey: wrongKey));
 
         var invalidSignatureResponse = await invalidSignatureClient.PostAsync(Endpoint, content: null);
         Assert.Equal(HttpStatusCode.Unauthorized, invalidSignatureResponse.StatusCode);
@@ -75,28 +73,9 @@ public sealed class AppUserEndpointTests(FunctionalTestWebAppFactory factory)
     private HttpClient CreateAuthorizedClient(string keycloakSub)
     {
         var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken(keycloakSub));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TestTokens.CreateToken(keycloakSub));
 
         return client;
-    }
-
-    private static string CreateToken(
-        string keycloakSub,
-        SecurityKey? signingKey = null,
-        DateTime? expires = null)
-    {
-        var credentials = new SigningCredentials(
-            signingKey ?? FunctionalTestWebAppFactory.SigningKey,
-            SecurityAlgorithms.HmacSha256);
-
-        var token = new JwtSecurityToken(
-            issuer: FunctionalTestWebAppFactory.TestIssuer,
-            audience: FunctionalTestWebAppFactory.TestAudience,
-            claims: [new Claim("sub", keycloakSub)],
-            expires: expires ?? DateTime.UtcNow.AddMinutes(5),
-            signingCredentials: credentials);
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     private sealed record UpsertAppUserResponse(Guid AppUserId);

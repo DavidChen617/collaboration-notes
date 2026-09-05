@@ -23,9 +23,11 @@
 
 ## 4. Api
 
-- [ ] 4.1 新增建立/更新/刪除/列表/讀取筆記的 Minimal API Endpoint，只做輸入驗證並分派給對應 Command/Query Handler
-- [ ] 4.2 撰寫 Functional Test（真實 HTTP pipeline），涵蓋五個 Requirement 對應的成功與拒絕情境（含未攜帶驗證、非擁有者存取）
-- [ ] 4.3 撰寫架構測試，驗證 `CoNotes.Domain` 不參考 `CoNotes.Infrastructure`/`CoNotes.Api`
+> 加了 `Asp.Versioning.Http`/`.OpenApi`（`Api/Endpoints/v1/Notes/`）跟 `Davish.Endpoints` 的 `IGroupEndpoint`/`IEndpoint<TGroup>` 模式，比照 CLAUDE.md 訂的 `Api/Endpoints/<ApiVersion>/<Feature>/<動詞>.cs` 慣例——這是這個專案第一個「真正的」產品功能 endpoint（先前 setup-infra-and-auth 那個是丟棄式的測試 endpoint，刻意沒上版本化）。
+
+- [x] 4.1 新增建立/更新/刪除/列表/讀取筆記的 Minimal API Endpoint，只做輸入驗證並分派給對應 Command/Query Handler
+- [x] 4.2 撰寫 Functional Test（真實 HTTP pipeline），涵蓋五個 Requirement 對應的成功與拒絕情境（含未攜帶驗證、非擁有者存取）（`NoteEndpointTests.cs`，9 個測試，對真的本機 Postgres 全部通過）
+- [x] 4.3 撰寫架構測試，驗證 `CoNotes.Domain` 不參考 `CoNotes.Infrastructure`/`CoNotes.Api`（沿用 setup-infra-and-auth 既有的 `LayerDependencyTests`，它是組件層級的檢查，`Note` 加進 `CoNotes.Domain` 後自動涵蓋，不需要新測試）
 
 ## 5. Angular 前端
 

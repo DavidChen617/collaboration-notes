@@ -1,8 +1,7 @@
+using Asp.Versioning;
 using CoNotes.Application;
 using CoNotes.Application.AppUsers.Commands.Upsert;
 using CoNotes.Infrastructure;
-using Davish.Result;
-using Davish.Sendr;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
@@ -10,8 +9,22 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddEndpoints();
+
+builder.Services
+    .AddApiVersioning(o =>
+    {
+        o.AssumeDefaultVersionWhenUnspecified = true;
+        o.ReportApiVersions = true;
+        o.ApiVersionReader = new UrlSegmentApiVersionReader();
+    })
+    .AddApiExplorer(o =>
+    {
+        o.GroupNameFormat = "'v'VVV";
+        o.SubstituteApiVersionInUrl = true;
+    })
+    .AddOpenApi();
 
 var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
 
@@ -58,7 +71,7 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().WithDocumentPerVersion();
 }
 
 app.UseAuthentication();
@@ -78,6 +91,8 @@ app.MapPost("/api/test/app-user", async (ISender sender, HttpContext httpContext
     return result.ToOk();
 })
 .RequireAuthorization();
+
+app.MapEndpoints();
 
 app.Run();
 
