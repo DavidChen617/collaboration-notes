@@ -1,3 +1,5 @@
+using CoNotes.FunctionalTests;
+
 namespace FunctionalTests;
 
 [CollectionDefinition(nameof(ApiCollection))]

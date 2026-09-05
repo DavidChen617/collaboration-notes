@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using CoNotes.FunctionalTests;
 using Microsoft.IdentityModel.Tokens;
 
 namespace FunctionalTests;

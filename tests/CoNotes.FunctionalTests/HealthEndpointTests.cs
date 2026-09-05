@@ -1,4 +1,5 @@
 using System.Net;
+using CoNotes.FunctionalTests;
 
 namespace FunctionalTests;
 

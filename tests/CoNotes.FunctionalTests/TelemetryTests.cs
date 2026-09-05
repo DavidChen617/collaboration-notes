@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using CoNotes.FunctionalTests;
 
 namespace FunctionalTests;
 
