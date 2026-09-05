@@ -6,7 +6,7 @@ namespace IntegrationTests;
 
 public sealed class IntegrationTestWebAppFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder("postgres:16")
+    private readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder("postgres:18")
         .WithDatabase("app")
         .WithUsername("conotes_app")
         .WithPassword("password")
