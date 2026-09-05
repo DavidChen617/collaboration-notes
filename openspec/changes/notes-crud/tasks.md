@@ -31,9 +31,11 @@
 
 ## 5. Angular 前端
 
-- [ ] 5.1 建立筆記列表畫面，串接列表 API，驗證畫面顯示目前使用者的所有筆記
-- [ ] 5.2 建立筆記編輯畫面，支援建立新筆記與編輯既有筆記內容，驗證儲存後資料確實寫回後端
-- [ ] 5.3 在列表畫面加上刪除操作，驗證刪除後該筆記從畫面上消失
+> 這個 change 之前，Angular 專案完全沒有 Keycloak 登入整合——`setup-infra-and-auth` 的 tasks.md 沒有任何前端任務。跟你確認過後，這裡先補上 `keycloak-angular`（`provideKeycloak` + `includeBearerTokenInterceptor`，設定對應 `conotes-realm.json` 的 realm/clientId），才能讓 5.1-5.3 真的叫得動需要驗證身份的 API。驗證方式：`ng build` 型別檢查/編譯通過、`ng serve` 確認頁面與路由真的服務得出來；沒辦法驗證的部分——這個 sandbox 沒有可用的瀏覽器（試過用 Puppeteer 抓 Chrome，抓到的是 x86_64 版本，這台是 arm64，跑不動 qemu 模擬，跟先前 Docker 卡住是同一類環境限制），所以登入畫面、表單互動這些視覺/互動行為沒辦法實際看到。
+
+- [ ] 5.1 建立筆記列表畫面，串接列表 API，驗證畫面顯示目前使用者的所有筆記（`note-list.component.ts` 已寫，`ng build` 編譯/型別檢查通過；「驗證畫面顯示」這半句沒有瀏覽器做不到，不打勾）
+- [ ] 5.2 建立筆記編輯畫面，支援建立新筆記與編輯既有筆記內容，驗證儲存後資料確實寫回後端（`note-editor.component.ts` 已寫，同一元件依路由是否帶 `noteId` 判斷建立/編輯，`ng build` 通過；同樣缺瀏覽器驗證，不打勾）
+- [ ] 5.3 在列表畫面加上刪除操作，驗證刪除後該筆記從畫面上消失（`note-list.component.ts` 已加刪除按鈕；同樣缺瀏覽器驗證，不打勾）
 
 ## 6. 端對端驗證
 

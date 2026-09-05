@@ -294,6 +294,7 @@ FakesAssemblies/
 # Node.js Tools for Visual Studio
 .ntvs_analysis.dat
 node_modules/
+.pnpm-store/
 
 # Visual Studio 6 build log
 *.plg
@@ -486,5 +487,3 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
-# Core dumps
-core
