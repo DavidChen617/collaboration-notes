@@ -15,9 +15,11 @@
 
 ## 3. Infrastructure
 
-- [ ] 3.1 撰寫新的 `golang-migrate` migration，新增 `Note` table（`Id`、`OwnerAppUserId` 外鍵指向 `AppUser`、`Title`、`Content`、`CreatedAt`、`UpdatedAt`），執行後用 `migrate version` 確認套用成功；驗證 down migration 可正確移除該 table
-- [ ] 3.2 實作 `Note` 的 Dapper Repository（Command 端用），撰寫 Testcontainers 整合測試涵蓋新增/更新/刪除
-- [ ] 3.3 實作 `ListNotesQuery`/`GetNoteQuery` 用的 `IDbConnectionFactory` 查詢邏輯，撰寫 Testcontainers 整合測試涵蓋擁有權過濾
+> 這個環境一樣沒有可用的 Docker daemon（見 setup-infra-and-auth 的說明），3.2/3.3 的 Testcontainers 測試編譯通過、寫法上重用同一支 `IntegrationTestWebAppFactory`，但在這裡跑會於連線 Docker daemon 那步失敗，邏輯本身已經另外用未納入 repo 的 scratch console app 對本機 Postgres 跑過一輪 Add/Update/Delete/GetById 全部正確。3.3 額外加了 `TestUserContext`（`tests/CoNotes.IntegrationTests/TestUserContext.cs`）取代真正的 `IUserContext`，因為 Query Handler 需要的「目前使用者」在整合測試裡沒有真的 HTTP 請求可以讀。
+
+- [x] 3.1 撰寫新的 `golang-migrate` migration，新增 `Note` table（`Id`、`OwnerAppUserId` 外鍵指向 `AppUser`、`Title`、`Content`、`CreatedAt`、`UpdatedAt`），執行後用 `migrate version` 確認套用成功；驗證 down migration 可正確移除該 table
+- [ ] 3.2 實作 `Note` 的 Dapper Repository（Command 端用），撰寫 Testcontainers 整合測試涵蓋新增/更新/刪除（`NoteRepositoryTests.cs` 已寫，編譯通過，待有 Docker 的環境跑 `dotnet test tests/CoNotes.IntegrationTests` 驗證）
+- [ ] 3.3 實作 `ListNotesQuery`/`GetNoteQuery` 用的 `IDbConnectionFactory` 查詢邏輯，撰寫 Testcontainers 整合測試涵蓋擁有權過濾（`NoteQueryOwnershipTests.cs` 已寫，編譯通過，待有 Docker 的環境跑 `dotnet test tests/CoNotes.IntegrationTests` 驗證）
 
 ## 4. Api
 

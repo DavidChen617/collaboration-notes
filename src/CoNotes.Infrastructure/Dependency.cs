@@ -1,5 +1,7 @@
 using CoNotes.Domain.AppUsers;
+using CoNotes.Domain.Notes;
 using CoNotes.Infrastructure.AppUsers;
+using CoNotes.Infrastructure.Notes;
 using CoNotes.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +18,8 @@ public static class Dependency
 
             services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
             services.AddScoped<IAppUserRepository, AppUserRepository>();
+            services.AddScoped<INoteRepository, NoteRepository>();
+            services.AddScoped<IUserContext, UserContext>();
 
             return services;
         }
