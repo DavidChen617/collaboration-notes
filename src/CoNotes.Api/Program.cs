@@ -44,6 +44,9 @@ builder.Services
         options.Authority = builder.Configuration["Authentication:Authority"];
         options.Audience = builder.Configuration["Authentication:Audience"];
         options.MapInboundClaims = false;
+        // Local dev commonly runs Keycloak over plain HTTP; production Authority
+        // is HTTPS (behind nginx/Cloudflare), so only relax this in Development.
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     });
 
 builder.Services

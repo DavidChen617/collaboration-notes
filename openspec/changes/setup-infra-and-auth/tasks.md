@@ -20,8 +20,8 @@
 - [x] 3.4 建立 `app`、`keycloak` 兩個 database，並確認可分別用對應帳號連線成功
 - [x] 3.5 安裝 `golang-migrate` CLI，撰寫第一版 migration 建立 `AppUser` table，執行後用 `migrate version` 確認已套用到最新版本；驗證 down/up 都能重複執行不報錯
 - [ ] 3.6 撰寫 Keycloak 的 k8s manifest（Deployment + Service），指向 `keycloak` database，部署後確認 pod Running 且能連上該 database（manifest 已寫於 `deploy/k8s/keycloak/`，未部署確認）
-- [ ] 3.7 手動建立 Realm 與一個開啟 PKCE 的 public client，設定合法的 redirect URI；匯出成 realm-export JSON 存進 repo，並驗證用此檔案可重新匯入出一致的 Realm（`deploy/k8s/keycloak/realm-export/conotes-realm.json` 已依 Keycloak realm-export schema撰寫，但沒有真的 Keycloak 可以匯入/匯出驗證一致性）
-- [ ] 3.8 手動走一次 Keycloak 登入頁面完成登入，確認可取得 access token（阻塞：沒有可部署的 Keycloak）
+- [x] 3.7 手動建立 Realm 與一個開啟 PKCE 的 public client，設定合法的 redirect URI；匯出成 realm-export JSON 存進 repo，並驗證用此檔案可重新匯入出一致的 Realm（沒有 k8s，但 Keycloak 本身是 Java 應用、不一定要容器化：直接在本機裝 JDK 21 + Keycloak 26.7.3 distribution，接本機的 `keycloak` database 跑 `--import-realm`，用 admin REST API 讀回 Realm/Client 設定，逐欄位比對跟 `conotes-realm.json` 完全一致。過程中發現兩個真的問題並已修正：① `redirectUris`/`webOrigins` 原本寫 `https://app.<domain>/*`，`<`/`>` 不是合法 URI 字元，Keycloak 直接拒絕匯入，已改用 `example.com` 佔位；② public client 預設核發的 access token `aud` 只有 `account`，不會是 `conotes-spa`，跟 design.md 決策 5「Audience 設成 SPA 的 client id」的假設對不上，已在 client 定義加上 `oidc-audience-mapper`（`protocolMappers`），重新從乾淨 DB 匯入驗證過 `aud` 正確變成 `["conotes-spa","account"]`）
+- [x] 3.8 手動走一次 Keycloak 登入頁面完成登入，確認可取得 access token（沒有瀏覽器，改用 curl 模擬瀏覽器實際會發的 HTTP 請求：走 Authorization Code + PKCE 全流程——GET `/auth`、解析登入表單、POST 帳密、從 302 redirect 撈 `code`、用 `code_verifier` 換 token——truly 拿到一組有效 access token。接著更進一步：把這組真的 token 拿去打本機啟動的 `CoNotes.Api`（`Authority` 指向這個真的 Keycloak），完整走一次 401→200、UpsertAppUserCommand、Postgres 寫入、重複呼叫不重複建立，全部通過，比 task 原本要求的還完整。過程中額外發現 `RequireHttpsMetadata` 預設 `true` 會擋掉本機這種跑在 http 的 Keycloak，已在 `Program.cs` 加上 `!IsDevelopment()` 判斷修正，functional tests 全數重跑仍然通過）
 - [ ] 3.9 撰寫 SigNoz 的 k8s manifest，部署後確認可以開啟 SigNoz 的 UI（改用官方 Helm chart，見 `deploy/k8s/signoz/application.yaml` 這個 child ArgoCD Application；SigNoz 實際拓樸複雜，手刻 raw manifest 風險太高，未部署確認）
 - [ ] 3.10 部署 ingress-nginx controller，確認其 Service 已取得可用的內部位址；建立 Ingress 規則，把 `api.<domain>` 導向 API Service、`auth.<domain>` 導向 Keycloak Service（controller 同樣改用官方 Helm chart，見 `deploy/k8s/ingress-nginx/application.yaml`；Ingress 規則見 `deploy/k8s/ingress/ingress.yaml`；未部署確認）
 - [ ] 3.11 更新 Cloudflare Tunnel 設定，將目標指向 nginx 的 Service（設定檔已寫於 `deploy/cloudflared/config.yml`；實際套用到線上 Tunnel 是這個 repo／sandbox 以外的操作，無法在此驗證）
@@ -47,6 +47,6 @@
 > 5.1/5.2 需要真的 k8s cluster 與對外網域，這個 sandbox 沒有，無法驗證。
 
 - [ ] 5.1 確認 ArgoCD Application 同步 `deploy/k8s` 成功，所有 workload 狀態為 Synced/Healthy（阻塞：無 k8s cluster）
-- [ ] 5.2 從外部瀏覽器實測：`auth.<domain>` 可看到 Keycloak 登入頁；完成登入後，用取得的 token 呼叫 `api.<domain>` 的受保護 endpoint 可取得正常回應（阻塞：無 k8s cluster／對外網域）
+- [ ] 5.2 從外部瀏覽器實測：`auth.<domain>` 可看到 Keycloak 登入頁；完成登入後，用取得的 token 呼叫 `api.<domain>` 的受保護 endpoint 可取得正常回應（真的外部網域／瀏覽器阻塞：無 k8s cluster／對外網域。但底層的登入→取得 token→呼叫受保護 endpoint 這條路，已經在本機用真的 Keycloak + 真的 API 完整跑過一次，見 3.8 的說明，全部正常回應；缺的只是「外部瀏覽器」跟「真的網域」這兩個環境條件）
 - [x] 5.3 逐一驗證 `specs/identity/authentication/spec.md` 的四個 Requirement 全數通過（四個 Requirement 分別對應 `AppUserEndpointTests`/`HealthEndpointTests` 裡的 6 個 functional test，全數通過；唯一沒驗證到的是真的瀏覽器 OIDC 登入導轉，見 5.2）
 - [x] 5.4 把部署順序與已知限制（單副本 Keycloak、共用 Postgres instance）記錄到 repo 說明文件，供之後重建環境參考（`deploy/README.md`）

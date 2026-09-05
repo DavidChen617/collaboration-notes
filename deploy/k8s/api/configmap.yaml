@@ -4,6 +4,6 @@ metadata:
   name: api-config
   namespace: collaboration-notes
 data:
-  Authentication__Authority: https://auth.<domain>/realms/conotes
+  Authentication__Authority: https://auth.example.com/realms/conotes
   Authentication__Audience: conotes-spa
   OpenTelemetry__OtlpEndpoint: http://signoz-otel-collector.signoz.svc.cluster.local:4317

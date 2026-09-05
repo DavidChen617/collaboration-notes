@@ -10,8 +10,8 @@ tunnel: <tunnel-id>
 credentials-file: /etc/cloudflared/creds/credentials.json
 
 ingress:
-  - hostname: api.<domain>
+  - hostname: api.example.com
     service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
-  - hostname: auth.<domain>
+  - hostname: auth.example.com
     service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
   - service: http_status:404
