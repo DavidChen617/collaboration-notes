@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\src\CoNotes.Api\CoNotes.Api.csproj" />
     <ProjectReference Include="..\..\src\CoNotes.Infrastructure\CoNotes.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\CoNotes.Application\CoNotes.Application.csproj" />
+    <ProjectReference Include="..\..\src\CoNotes.Domain\CoNotes.Domain.csproj" />
   </ItemGroup>
 
 </Project>

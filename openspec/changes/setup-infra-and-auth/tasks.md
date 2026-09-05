@@ -1,14 +1,14 @@
 ## 1. Domain（`CoNotes.Domain`）
 
-- [ ] 1.1 定義 `AppUser` Aggregate Root（`Id`、`KeycloakSub`、`CreatedAt`），提供建立新 `AppUser` 的工廠方法，建立時記錄 `AppUserProvisioned` Domain Event
-- [ ] 1.2 單元測試（NSubstitute 不需要，純 Domain 邏輯）：`GivenNewKeycloakSub_WhenCreatingAppUser_ThenRaisesAppUserProvisionedEvent`
-- [ ] 1.3 定義 `IAppUserRepository` 介面（`FindByKeycloakSubAsync`、`AddAsync`），供 Application 層依賴、Infrastructure 層實作
+- [x] 1.1 定義 `AppUser` Aggregate Root（`Id`、`KeycloakSub`、`CreatedAt`），提供建立新 `AppUser` 的工廠方法，建立時記錄 `AppUserProvisioned` Domain Event
+- [x] 1.2 單元測試（NSubstitute 不需要，純 Domain 邏輯）：`GivenNewKeycloakSub_WhenCreatingAppUser_ThenRaisesAppUserProvisionedEvent`
+- [x] 1.3 定義 `IAppUserRepository` 介面（`FindByKeycloakSubAsync`、`AddAsync`），供 Application 層依賴、Infrastructure 層實作
 
 ## 2. Application（`CoNotes.Application`）
 
-- [ ] 2.1 實作 `UpsertAppUserCommand` + `UpsertAppUserCommandHandler`：查詢 `IAppUserRepository` 是否已有對應 `AppUser`，沒有就建立新的並寫入，已有就直接回傳既有記錄
-- [ ] 2.2 單元測試（mock `IAppUserRepository`）：`GivenAppUserDoesNotExist_WhenHandlingUpsertAppUserCommand_ThenCreatesAndPersistsNewAppUser`
-- [ ] 2.3 單元測試（mock `IAppUserRepository`）：`GivenAppUserAlreadyExists_WhenHandlingUpsertAppUserCommand_ThenReturnsExistingAppUserWithoutDuplication`
+- [x] 2.1 實作 `UpsertAppUserCommand` + `UpsertAppUserCommandHandler`：查詢 `IAppUserRepository` 是否已有對應 `AppUser`，沒有就建立新的並寫入，已有就直接回傳既有記錄
+- [x] 2.2 單元測試（mock `IAppUserRepository`）：`GivenAppUserDoesNotExist_WhenHandlingUpsertAppUserCommand_ThenCreatesAndPersistsNewAppUser`
+- [x] 2.3 單元測試（mock `IAppUserRepository`）：`GivenAppUserAlreadyExists_WhenHandlingUpsertAppUserCommand_ThenReturnsExistingAppUserWithoutDuplication`
 
 ## 3. Infrastructure（`CoNotes.Infrastructure` + 叢集基礎設施）
 
@@ -23,7 +23,7 @@
 - [ ] 3.9 撰寫 SigNoz 的 k8s manifest，部署後確認可以開啟 SigNoz 的 UI
 - [ ] 3.10 部署 ingress-nginx controller，確認其 Service 已取得可用的內部位址；建立 Ingress 規則，把 `api.<domain>` 導向 API Service、`auth.<domain>` 導向 Keycloak Service
 - [ ] 3.11 更新 Cloudflare Tunnel 設定，將目標指向 nginx 的 Service
-- [ ] 3.12 架構測試（不依賴套件，自行檢查組件參照）：`GivenDomainAssembly_WhenInspectingReferences_ThenItDoesNotReferenceInfrastructureOrApi`
+- [x] 3.12 架構測試（不依賴套件，自行檢查組件參照）：`GivenDomainAssembly_WhenInspectingReferences_ThenItDoesNotReferenceInfrastructureOrApi`
 
 ## 4. Api（`CoNotes.Api`）
 
