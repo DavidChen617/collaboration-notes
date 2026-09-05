@@ -1,0 +1,26 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/TodoApp/" />
+  <Folder Name="/src/TodoApp/Api/">
+    <Project Path="src/TodoApp/Api/Todo.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/TodoApp/Application/">
+    <Project Path="src/TodoApp/Application/Todo.Application.csproj" />
+  </Folder>
+  <Folder Name="/src/TodoApp/Domain/">
+    <Project Path="src/TodoApp/Domain/Todo.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/TodoApp/Infrastructure/">
+    <Project Path="src/TodoApp/Infrastructure/Todo.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/BuildBlock/">
+    <Project Path="tests/BuildBlock/BuildBlock.csproj" />
+  </Folder>
+  <Folder Name="/tests/TodoApp/">
+    <Project Path="tests/TodoApp/ArchitectureTests/ArchitectureTests.csproj" />
+    <Project Path="tests/TodoApp/FunctionalTests/FunctionalTests.csproj" />
+    <Project Path="tests/TodoApp/IntegrationTests/IntegrationTests.csproj" />
+    <Project Path="tests/TodoApp/UnitTests/UnitTests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,6 @@
+@CoNote.Api_HostAddress = http://localhost:5094
+
+GET {{CoNote.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

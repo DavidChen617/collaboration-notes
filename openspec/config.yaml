@@ -1,0 +1,171 @@
+schema: spec-driven
+
+context: |
+  ## 專案定位
+  CoNotes（共編筆記）：一個即時共編筆記 SaaS，玩具/學習專案，非商業應用。
+  核心功能分三個訂閱等級：Free（個人筆記 + wikilink 連結 + 關係圖）、
+  Pro（+ 分享連結即時共編）、ProMax（+ 筆記內建 AI 聊天室）。
+
+  開發方法論沿用 `/Users/chendavid/workspace/labs/lab-openspec/awesome-spec` 這個
+  DDD + CQRS + OpenSpec 範本專案的慣例。本 repo 的 `sample/` 目錄複製自該範本的
+  Todo 服務完整參考範例（4 層架構 + 4 種測試專案都跑得起來），寫程式前可以直接參照
+  `sample/src/TodoApp/` 跟 `sample/tests/TodoApp/` 底下的實際寫法。
+
+  ## 技術棧
+  - .NET 10 Web API（Minimal API）
+  - PostgreSQL + Dapper（手寫 SQL，Repository / Query 皆自行 mapping）
+  - golang-migrate CLI 做 schema migration（不是 EF Core migration）
+  - 身份驗證：Keycloak（OIDC Provider）+ ASP.NET Core JWT Bearer（API 純粹當
+    Resource Server，`Authority` 指向 Keycloak Realm issuer，不自己處理登入交握）
+  - Redis（SignalR backplane）、SignalR（即時共編、聊天室，各自獨立 Hub）
+  - 前端：Angular SPA（專案位於 `src/CoNotes.Client/`，部署在 GitHub Pages）、
+    Tiptap（含官方 Yjs 協作擴充套件）做筆記編輯器、Cytoscape.js 做筆記關係圖
+  - AI Chat：多個免費額度 AI provider，`IAiChatProvider` 介面 + Chain of
+    Responsibility 依序 failover
+  - 觀測性：SigNoz（OpenTelemetry-native，trace + log + metric 單一部署）
+  - 部署：2 節點 k8s cluster、nginx（ingress-nginx）當內部反向代理進入點、
+    Cloudflare Tunnel 對外、ArgoCD 做 GitOps
+  - 金流：PayPal Subscriptions API（sandbox），license code 一次性解鎖、
+    與 PayPal 後續扣款狀態脫鉤（管理者手動撤銷是唯一收回手段）
+  - 測試：Testcontainers 啟動真實 PostgreSQL 容器做整合測試
+
+  ## 自製套件（Davish.*）
+  這個專案會用到使用者自己撰寫維護的一系列 NuGet 套件（不是公開套件），AI 對
+  這些套件沒有先驗知識，必須以 `sample/` 底下的實際用法為準，不要用一般
+  MediatR/FluentResults 之類公開套件的知識去猜測 API 長相。
+
+  - **Davish.SharedKernel**（Domain 層）：提供 `AggregateRoot` 基底類別
+    （`Id`、`RaiseDomainEvent(...)` protected 方法）。Aggregate 的識別碼一律用
+    `Guid.CreateVersion7()` 產生（時間排序的 UUIDv7），不要用 `Guid.NewGuid()`。
+  - **Davish.Result**（各層都會用）：`Result`／`Result<T>` 型別，取代拋例外的
+    錯誤處理方式。`Error` 是一個 record（`Code`、`Message`、`ErrorType`），可以
+    直接隱式轉換成 `Result`／`Result<T>`（例如
+    `return new Error("Todo.Complete", "...", ErrorType.NotFound);`）；成功值
+    也能隱式轉換（例如 `return new CreateTodoDto(todo.Id);` 直接當
+    `Result<CreateTodoDto>` 回傳）。Domain 的行為方法（例如 `Complete()`、
+    `Delete()`）以及 Repository 的寫入方法都回傳 `Result`，不是
+    `void`／`bool`／丟例外。
+  - **Davish.Result.AspNetCore.Http**（Api 層）：把 `Result`／`Result<T>` 轉成
+    `IResult` 的擴充方法，依 `ErrorType` 自動對應正確的 HTTP 狀態碼。常見用法：
+    `result.ToOk()`（200）、`result.ToCreated("EndpointName", v => new { ... })`
+    （201 + Location header）。
+  - **Davish.Sendr** + **Davish.Sendr.Message**（Application/Infrastructure/Api
+    層）：CQRS 的 mediator/dispatch 機制，取代 MediatR。`ICommand<TResult>`／
+    `ICommandHandler<TCommand,TResult>`、`IQuery<TResult>`／
+    `IQueryHandler<TQuery,TResult>` 定義訊息與處理者；Api 層透過注入的
+    `ISender` 呼叫 `sender.SendAsync(command, ct)` 分派。註冊方式：
+    `services.AddSendr()` + `.AddRequestHandler<TRequest, TResult, THandler>(o
+    => o.Decorator.With<TDecorator>())`（decorator 是選填的 pipeline 行為，
+    例如 `TransactionalDecorator` 實作 `IRequestDecorator.WithResponse`，包一層
+    `HandleAsync<TRequest,TResponse>(request, next, ct)`）。
+  - **Davish.Sendr.Notification**（Application 層）：Domain Event 的通知/派送
+    機制。註冊：`services.AddSendrNotification()` +
+    `.AddNotificationHandler<TEvent>(o => o.Handler.Sequence.With<THandler>())`，
+    事件處理者放在 `Application/<Feature>/EventHandling/`。
+  - **Davish.Endpoints**（Api 層）：Minimal API 的 endpoint 抽象，取代把所有
+    路由寫在 `Program.cs`。`IEndpoint<TGroup>`（單一路由，
+    `AddRoutes(IEndpointRouteBuilder endpoints)`）、`IGroupEndpoint`（定義一個
+    路由群組，`Configure(IEndpointRouteBuilder endpoints)` 回傳
+    `RouteGroupBuilder`）。
+
+  具體、可執行的完整範例在 `sample/src/TodoApp/`（尤其
+  `Api/Endpoints/v1/Todos/`、`Application/Todos/`、
+  `Domain/Todos/Todo.cs`、`Application/Dependency.cs`）——每次要用這些套件寫
+  程式碼前，先讀對應的範例檔案，不要憑印象猜 API。
+
+  ## DDD 慣例
+  - Bounded Context：依業務子領域劃分（例如 Notes、Collaboration、Chat、
+    Billing），不同 Context 之間透過明確介面（API / Event）溝通，避免共用資料庫
+  - Aggregate：每個 Aggregate 有唯一 Aggregate Root，外部只能透過 Root 操作
+    內部 Entity/Value Object
+  - Entity vs Value Object：有識別性、有生命週期的用 Entity；不可變、以值比較
+    的用 Value Object
+  - Domain Event：Aggregate 狀態變化時發出，用於跨 Aggregate / Bounded
+    Context 的最終一致性
+  - Ubiquitous Language：Spec/Proposal 用語要與領域一致，程式碼命名（類別、
+    方法）也要對齊
+
+  ## 分層架構：4 Layer + CQRS
+  - Domain：Entity、Value Object、Aggregate、Domain Event、Repository 介面
+    （不依賴框架）
+  - Application：拆分為 Command 與 Query 兩條路徑
+    - Command：Command + Handler，透過 Repository 載入 Aggregate、執行行為、
+      落地變更；交易處理用 decorator 包一層，不在 Handler 內手動開交易
+    - Query：Query + Handler，直接用 Dapper 查資料庫組出 Read Model，不經過
+      Domain 層
+  - Infrastructure：Dapper Repository 實作（Command 端）、`AppDbContext`/
+    `UnitOfWork`（交易管理）、`IDbConnectionFactory` 實作（Query 端連線）、
+    外部服務整合（Keycloak、PayPal、AI provider、SignalR）
+  - Api：ASP.NET Core Minimal API Endpoint，只做輸入驗證並分派給對應的
+    Command/Query Handler
+  - 專案結構：這個專案只有單一服務（不是多服務 repo），採**扁平結構**
+    `src/CoNotes.<Layer>/`（`CoNotes.Domain`、`CoNotes.Application`、
+    `CoNotes.Infrastructure`、`CoNotes.Api`，外加前端的 `CoNotes.Client`），
+    不是 `sample/` 範本裡「服務資料夾在前、分層在後」的巢狀結構（那是給多
+    服務 repo 用的）
+  - Application/Domain/Api 內部再依 Bounded Context/Feature 分資料夾：
+    - `Application/<Feature>/Commands/<動詞>/<動詞><Feature單數>Command.cs`
+      （連同該 Command 的 Dto）與對應的 `<動詞><Feature單數>CommandHandler.cs`；
+      資料夾用簡短動詞命名（例如 `Create`、`Share`、`Redeem`），不重複 Feature 名稱
+    - `Application/<Feature>/Queries/<動詞>/...`，命名規則同上（例如 `Get`、`List`）
+    - `Application/<Feature>/EventHandling/<EventName>Handler.cs`：實作
+      `IDomainEventHandler<TEvent>`
+    - `Domain/<Feature>/...`（Entity/Value Object/Aggregate 直接放在這層），
+      `Domain/<Feature>/Events/<EventName>DomainEvent.cs`
+    - `Api/Endpoints/<ApiVersion>/<Feature>/<動詞>.cs`，內含類別
+      `<動詞><Feature單數>Endpoint`
+    - Schema 變更的 migration script 放在
+      `Infrastructure/Persistence/Migrations/<timestamp>_<name>.up.sql` /
+      `.down.sql`，用 `golang-migrate` 執行
+
+  ## 測試慣例
+  - 單元測試：針對 Domain 與 Application 層的行為/不變條件、Handler 分支；
+    mock 用 NSubstitute；測試方法命名為 `GivenXXX_WhenXXX_ThenXXX`
+  - 整合測試：Testcontainers 啟動真實 PostgreSQL，驗證 Repository、Query
+    Handler 與資料庫的互動
+  - 功能測試：針對 Api 層，透過真正的 HTTP pipeline 端對端驗證，涵蓋認證、
+    輸入驗證、狀態碼等外部可觀察行為
+  - 架構測試：不依賴套件，自行以組件參照關係驗證分層依賴方向（例如 Domain
+    不得參考 Infrastructure/Api）
+
+rules:
+  proposal:
+    - 必須標明本次變更影響的 Bounded Context 與 Aggregate
+    - 保持在 500 字以內，聚焦 What & Why
+  design:
+    - 涉及新增/修改 Aggregate 或跨 Bounded Context 事件時，必須說明 Aggregate
+      邊界劃分理由
+    - 必須列出會發出的 Domain Event 與觸發時機
+    - 必須包含 Sequence 圖（mermaid），說明該功能的執行流程
+  specs:
+    - 每條 delta spec 必須標示屬於 Command（寫入）或 Query（讀取）路徑
+  tasks:
+    - 任務需依 Domain → Application(Command/Query) → Infrastructure → Api
+      的順序排列
+    - 每個功能任務都必須包含對應測試任務：Domain/Application 單元測試
+      （NSubstitute mock，命名 GivenXXX_WhenXXX_ThenXXX），以及需要資料庫互動
+      時的 Testcontainers 整合測試
+    - Api 層的功能需搭配 Functional Test；跨層依賴規則需搭配架構測試（不依賴
+      套件）
+
+operations:
+  apply:
+    guidance:
+      - 依 tasks.md 的分層順序實作（Domain → Application → Infrastructure →
+        Api），不要跳層
+      - 每完成一個 Command/Query 就先跑對應測試（單元 + 需要時的 Testcontainers
+        整合測試）再繼續下一項
+      - 若發現 Aggregate 邊界或 Domain Event 跟 design.md 不一致，先回報並
+        等待決定，不要自行更動邊界
+      - Schema 變更一律走 `golang-migrate` 的 migration script，不要手動改
+        資料庫
+      - 建立專案／加入 solution 一律用 dotnet CLI（`dotnet new`、
+        `dotnet sln add`、`dotnet add reference`/`dotnet add package` 等），
+        不得手動創建或編輯 .csproj／.slnx 檔案
+      - 不確定分層寫法或命名慣例時，先參照 `sample/src/TodoApp/` 跟
+        `sample/tests/TodoApp/` 底下的實際範例
+  archive:
+    guidance:
+      - 合併進 main spec 時，保留 Command/Query 路徑標示
+      - 檢查用詞是否與既有 Ubiquitous Language 一致，不一致要提出來
+      - 封存摘要要列出：新增/修改的 Aggregate、發出的 Domain Event、測試涵蓋範圍

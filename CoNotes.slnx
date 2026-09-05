@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CoNotes.Api/CoNotes.Api.csproj" />
+    <Project Path="src/CoNotes.Application/CoNotes.Application.csproj" />
+    <Project Path="src/CoNotes.Domain/CoNotes.Domain.csproj" />
+    <Project Path="src/CoNotes.Infrastructure/CoNotes.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CoNotes.ArchitectureTests/CoNotes.ArchitectureTests.csproj" />
+    <Project Path="tests/CoNotes.FunctionalTests/CoNotes.FunctionalTests.csproj" />
+    <Project Path="tests/CoNotes.IntegrationTests/CoNotes.IntegrationTests.csproj" />
+    <Project Path="tests/CoNotes.UnitTests/CoNotes.UnitTests.csproj" />
+  </Folder>
+</Solution>
