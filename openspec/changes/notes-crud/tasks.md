@@ -1,7 +1,7 @@
 ## 1. Domain
 
-- [ ] 1.1 在 `CoNotes.Domain` 定義 `Note` Aggregate（`Id`、`OwnerAppUserId`、`Title`、`Content`、`CreatedAt`、`UpdatedAt`），封裝「擁有者比對」的不變條件與 `NoteCreated`/`NoteDeleted` Domain Event
-- [ ] 1.2 撰寫 `Note` Aggregate 的單元測試（NSubstitute，`GivenXXX_WhenXXX_ThenXXX`），涵蓋建立時發出 `NoteCreated`、刪除時發出 `NoteDeleted`、非擁有者操作時的拒絕邏輯
+- [x] 1.1 在 `CoNotes.Domain` 定義 `Note` Aggregate（`Id`、`OwnerAppUserId`、`Title`、`Content`、`CreatedAt`、`UpdatedAt`），封裝「擁有者比對」的不變條件與 `NoteCreated`/`NoteDeleted` Domain Event
+- [x] 1.2 撰寫 `Note` Aggregate 的單元測試（NSubstitute，`GivenXXX_WhenXXX_ThenXXX`），涵蓋建立時發出 `NoteCreated`、刪除時發出 `NoteDeleted`、非擁有者操作時的拒絕邏輯
 
 ## 2. Application（Command / Query）
 
