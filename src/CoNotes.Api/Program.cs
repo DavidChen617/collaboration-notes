@@ -9,7 +9,8 @@ builder.Services
     .AddEndpoints()
     .AddApiVersionConfiguration()
     .AddCustomResultErrorTypeMap()
-    .AddAuthenticationConfiguration(builder.Configuration, builder.Environment);
+    .AddAuthenticationConfiguration(builder.Configuration, builder.Environment)
+    .AddCorsConfiguration(builder.Configuration);
 
 builder.AddOpenTelemetryConfiguration();
 
@@ -19,11 +20,9 @@ builder.Services
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi().WithDocumentPerVersion();
-}
+app.MapOpenApi().WithDocumentPerVersion();
 
+app.UseCors(CorsConfiguration.PolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 
