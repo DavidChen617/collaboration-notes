@@ -41,7 +41,7 @@ docker compose up -d
   ASPNETCORE_ENVIRONMENT=Development \
   ConnectionStrings__DefaultConnection="Host=localhost;Database=app;Username=conotes_app;Password=password" \
   Authentication__Authority="http://localhost:8081/realms/conotes" \
-  OpenTelemetry__OtlpEndpoint="http://localhost:4317" \
+  OpenTelemetry__OtlpEndpoint="http://localhost:4318" \
   dotnet run --project src/CoNotes.Api
   ```
 
@@ -58,5 +58,7 @@ foundryctl cast -f casting.yaml                  # 產生並啟動本機 SigNoz�
 ```
 
 - 產生的檔案在 `infra/signoz-local/pours/`，是 `foundryctl` 的產出物，不進版本控制（見 `.gitignore`），要重建就重跑上面的指令；真正進版本控制的只有 `casting.yaml` 這份宣告式設定。
-- 啟動後 SigNoz UI 在 `http://localhost:8080`，OTLP 接收端點在 `http://localhost:4317`（gRPC）/`4318`（HTTP）——對應到上一節 `dotnet run` 範例裡的 `OpenTelemetry__OtlpEndpoint`。
-- **已知限制／資源需求**：SigNoz 的 ClickHouse 等元件相當吃記憶體，如果同時跑 SigNoz + 本專案自己的 docker-compose（Postgres/Keycloak）+ API，在記憶體有限的機器上（例如 Docker/Colima 只分配 ~2GB）會觸發 OOM，容器被系統強制殺掉、重啟。這個限制在資源有限的開發環境下實際發生過（容器在跑不到一分鐘內被殺掉、ClickHouse 遲遲跑不完 schema migration），本機 Docker/Colima 需要分配足夠記憶體（建議至少 4GB，官方文件本身也要求至少 4GB）才能穩定驗證這條 trace 路徑；資源不夠時，SigNoz 服務本身仍然啟動成功，只是還沒能完整走一次「API 呼叫 → trace 出現在 SigNoz」的端對端驗證。
+- 啟動後 SigNoz UI 在 `http://localhost:8080`，OTLP 接收端點在 `http://localhost:4317`（gRPC）/`4318`（HTTP）。
+- **記憶體需求**：SigNoz 的 ClickHouse 等元件相當吃記憶體，本機 Docker VM（例如 Colima）分配 ~2GB 時會觸發 OOM，容器被系統強制殺掉、重啟；分配到 6GB 後這個問題消失，容器都能穩定 Healthy。官方文件本身建議至少 4GB。
+- **OTLP 要用 HTTP/protobuf，不是 gRPC 預設值**：`OpenTelemetry.Exporter.OpenTelemetryProtocol` 的 gRPC 傳輸對非 TLS 的本機/內部端點會出現 `An HTTP/2 connection could not be established because the server did not complete the HTTP/2 handshake`，連不上——這不是本機限定的問題，我們整個架構的內部流量本來就是明碼（TLS 在 Cloudflare/nginx 這層就終止了），所以 k8s 環境下 API 打 SigNoz 的 otel-collector 也會遇到同樣的狀況。`src/CoNotes.Api/Program.cs` 已改成 `OtlpExportProtocol.HttpProtobuf`（端點對應改成 `4318`，路徑補上 `/v1/traces`、`/v1/logs`），這是純 HTTP POST、沒有這個限制，`appsettings.json` 與 `infra/k8s/api/configmap.yaml` 的預設值也一併從 `4317` 改成 `4318`。
+- **已知未解問題**：把記憶體提高到 6GB 之後，改用 HTTP/protobuf 的匯出也確認不再是「連線被拒」，但這個環境裡用 `foundryctl v0.2.17` 產生的 SigNoz 安裝，其 `ingester` 容器持續每 30 秒對 SigNoz 自己的 OpAmp 設定伺服器回報 `Server returned an error response`（`docker logs signoz-ingester-1`），懷疑因此導致 OTLP receiver 的實際設定沒有正確生效——實測對 `:4318` 送出真正的 export 請求會拿到「連線被建立但沒有回應」（`Empty reply from server`），ClickHouse 的 `signoz_traces.signoz_index_v3` 也持續是 0 筆。這看起來是這次 `foundryctl` 產生的本機 SigNoz 安裝本身的問題，不是本專案程式碼或設定的問題；還沒有找到根因，之後要嘛在真正的開發機上重試（可能是這台環境特有的狀況），要嘛換一個 `foundryctl` 版本重新產生一次。

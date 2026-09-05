@@ -3,6 +3,7 @@ using CoNotes.Application;
 using CoNotes.Application.AppUsers.Commands.Upsert;
 using CoNotes.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -36,7 +37,16 @@ builder.Services
         tracing.AddAspNetCoreInstrumentation();
 
         if (otlpEndpoint is not null)
-            tracing.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
+            tracing.AddOtlpExporter(o =>
+            {
+                // gRPC (the SDK's default) needs an HTTP/2-over-plaintext handshake that
+                // .NET's client refuses against a non-TLS collector; HTTP/protobuf is a
+                // plain HTTP POST and has no such requirement, so it's the reliable choice
+                // for the internal, non-TLS traffic this API always talks to SigNoz over
+                // (edge TLS is terminated at Cloudflare/nginx, not by the collector itself).
+                o.Protocol = OtlpExportProtocol.HttpProtobuf;
+                o.Endpoint = new Uri($"{otlpEndpoint}/v1/traces");
+            });
     });
 
 builder.Logging.AddOpenTelemetry(logging =>
@@ -45,7 +55,11 @@ builder.Logging.AddOpenTelemetry(logging =>
     logging.IncludeScopes = true;
 
     if (otlpEndpoint is not null)
-        logging.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
+        logging.AddOtlpExporter(o =>
+        {
+            o.Protocol = OtlpExportProtocol.HttpProtobuf;
+            o.Endpoint = new Uri($"{otlpEndpoint}/v1/logs");
+        });
 });
 
 builder.Services.AddCustomResultErrorTypeMap();
