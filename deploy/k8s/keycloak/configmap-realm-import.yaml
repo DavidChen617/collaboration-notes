@@ -1,0 +1,40 @@
+# Mirrors deploy/k8s/keycloak/realm-export/conotes-realm.json (the repo's
+# source-of-truth export, per design.md decision #10) so Keycloak can import it
+# on startup via --import-realm. Keep the two in sync.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-import
+  namespace: collaboration-notes
+data:
+  conotes-realm.json: |
+    {
+      "realm": "conotes",
+      "enabled": true,
+      "sslRequired": "external",
+      "registrationAllowed": false,
+      "clients": [
+        {
+          "clientId": "conotes-spa",
+          "name": "CoNotes SPA",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": true,
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": false,
+          "redirectUris": [
+            "https://app.<domain>/*",
+            "http://localhost:4200/*"
+          ],
+          "webOrigins": [
+            "https://app.<domain>",
+            "http://localhost:4200"
+          ],
+          "attributes": {
+            "pkce.code.challenge.method": "S256"
+          }
+        }
+      ]
+    }

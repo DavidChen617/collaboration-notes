@@ -1,0 +1,32 @@
+# Single replica: 2-node toy/learning cluster, no HA requirement for this change.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: collaboration-notes
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/davidchen617/conotes-api:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: api-config
+          env:
+            - name: APP_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: app-password
+            - name: ConnectionStrings__DefaultConnection
+              value: Host=postgres;Database=app;Username=conotes_app;Password=$(APP_DB_PASSWORD)

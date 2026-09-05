@@ -1,0 +1,27 @@
+# Child ArgoCD Application (app-of-apps pattern): SigNoz is installed from its
+# official Helm chart rather than hand-copied as raw manifests, since its real
+# topology (ClickHouse, otel-collector, query-service, frontend, alertmanager)
+# is genuinely complex and meant to be consumed as-is, not re-authored here.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: signoz
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://charts.signoz.io
+    chart: signoz
+    targetRevision: 0.140.0
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: signoz
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

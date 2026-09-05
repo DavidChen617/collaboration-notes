@@ -1,0 +1,21 @@
+# Creates the `app` and `keycloak` databases (each with its own owning role) on
+# first startup, on a single shared Postgres instance. Mirrors the setup-infra-and-auth
+# design decision: separate databases (not just schemas) so Keycloak's data can be
+# split to its own instance later without a data model change.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: collaboration-notes
+data:
+  01-create-app-and-keycloak-db.sh: |
+    #!/bin/bash
+    set -e
+
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE ROLE conotes_app WITH LOGIN PASSWORD '$APP_PASSWORD';
+      CREATE DATABASE app OWNER conotes_app;
+
+      CREATE ROLE conotes_keycloak WITH LOGIN PASSWORD '$KEYCLOAK_PASSWORD';
+      CREATE DATABASE keycloak OWNER conotes_keycloak;
+    EOSQL
