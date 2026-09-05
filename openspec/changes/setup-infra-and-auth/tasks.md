@@ -29,15 +29,17 @@
 
 ## 4. Api（`CoNotes.Api`）
 
-- [ ] 4.1 建立 .NET 10 API 專案骨架，加入不需驗證的健康檢查 endpoint
-- [ ] 4.2 設定 `AddAuthentication().AddJwtBearer()`，`Authority` 指向 Keycloak Realm 的 issuer URL，`Audience` 指向 client id
-- [ ] 4.3 建立一個受 `[Authorize]` 保護的測試 endpoint，登入成功後分派 `UpsertAppUserCommand`
-- [ ] 4.4 功能測試（真實 HTTP pipeline）：`GivenValidToken_WhenCallingProtectedEndpoint_ThenReturns200AndUpsertsAppUser`
-- [ ] 4.5 功能測試：`GivenNoToken_WhenCallingProtectedEndpoint_ThenReturns401`
-- [ ] 4.6 功能測試：`GivenExpiredOrInvalidSignatureToken_WhenCallingProtectedEndpoint_ThenReturns401`
-- [ ] 4.7 功能測試：`GivenSameUserCallsTwice_WhenSecondRequestArrives_ThenNoDuplicateAppUserIsCreated`
-- [ ] 4.8 功能測試：`GivenNoToken_WhenCallingHealthCheckEndpoint_ThenReturns200`
-- [ ] 4.9 埋 OpenTelemetry 儀器化，OTLP exporter 指向 SigNoz，驗證呼叫 API 後可在 SigNoz UI 看到對應 trace
+> 開發環境備註：`Authentication:Authority`/`OpenTelemetry:OtlpEndpoint` 指向的 Keycloak／SigNoz 在這個沙盒裡都不存在。4.2 的 JWT Bearer pipeline 改用 `FunctionalTestWebAppFactory` 覆寫 `TokenValidationParameters`（對稱金鑰簽章）來驗證真正的驗證/拒絕邏輯，沒有打過真的 Keycloak；4.9 用 `ActivityListener` 驗證 ASP.NET Core instrumentation 真的有產生 span，但沒有接到真的 SigNoz 去看 UI。
+
+- [x] 4.1 建立 .NET 10 API 專案骨架，加入不需驗證的健康檢查 endpoint
+- [x] 4.2 設定 `AddAuthentication().AddJwtBearer()`，`Authority` 指向 Keycloak Realm 的 issuer URL，`Audience` 指向 client id
+- [x] 4.3 建立一個受 `[Authorize]` 保護的測試 endpoint，登入成功後分派 `UpsertAppUserCommand`
+- [x] 4.4 功能測試（真實 HTTP pipeline）：`GivenValidToken_WhenCallingProtectedEndpoint_ThenReturns200AndUpsertsAppUser`
+- [x] 4.5 功能測試：`GivenNoToken_WhenCallingProtectedEndpoint_ThenReturns401`
+- [x] 4.6 功能測試：`GivenExpiredOrInvalidSignatureToken_WhenCallingProtectedEndpoint_ThenReturns401`
+- [x] 4.7 功能測試：`GivenSameUserCallsTwice_WhenSecondRequestArrives_ThenNoDuplicateAppUserIsCreated`
+- [x] 4.8 功能測試：`GivenNoToken_WhenCallingHealthCheckEndpoint_ThenReturns200`
+- [ ] 4.9 埋 OpenTelemetry 儀器化，OTLP exporter 指向 SigNoz，驗證呼叫 API 後可在 SigNoz UI 看到對應 trace（instrumentation 已驗證會產生 span，SigNoz UI 部分無法驗證）
 - [ ] 4.10 撰寫 API 的 k8s manifest，部署後確認 pod Running
 
 ## 5. 端對端驗證
