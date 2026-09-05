@@ -5,11 +5,13 @@
 
 ## 2. Application（Command / Query）
 
-- [ ] 2.1 實作 `CreateNoteCommand` + Handler，驗證單元測試涵蓋成功建立、回傳新 `NoteId`
-- [ ] 2.2 實作 `UpdateNoteCommand` + Handler，驗證單元測試涵蓋擁有者更新成功、非擁有者被拒絕
-- [ ] 2.3 實作 `DeleteNoteCommand` + Handler，驗證單元測試涵蓋擁有者刪除成功、非擁有者被拒絕
-- [ ] 2.4 實作 `ListNotesQuery` + Handler（直接 Dapper 查詢，不經 Domain 層），驗證單元測試涵蓋只回傳呼叫者自己的筆記
-- [ ] 2.5 實作 `GetNoteQuery` + Handler，驗證單元測試涵蓋擁有者可查得、非擁有者查詢被拒絕
+> 加了一個 tasks.md 沒明講但必要的抽象：`IUserContext`（`Application/Abstractions/IUserContext.cs`，`GetAppUserIdAsync`），跟 sample 的 `IUserContext.UserId` 同樣的角色，只是我們的 AppUserId 需要用 Keycloak `sub` 查表才能拿到，所以是 async。Handler 裡的擁有權比對走「Handler 拿 `IUserContext` 給的 AppUserId → 傳進 `Note.Update`/`Note.Delete`」，不是像 sample 的 Todo 一樣直接在 Handler 比對——這是 design.md 明講要封裝進 Aggregate 的緣故。2.4/2.5 沒有另外寫 NSubstitute 單元測試：這個專案的慣例（見 `sample/`）本來就不對 Dapper Query Handler 寫單元測試（`IDbConnection`/`CommandDefinition` 不好 mock），擁有權過濾的驗證留給 3.3 的 Testcontainers 整合測試涵蓋。
+
+- [x] 2.1 實作 `CreateNoteCommand` + Handler，驗證單元測試涵蓋成功建立、回傳新 `NoteId`
+- [x] 2.2 實作 `UpdateNoteCommand` + Handler，驗證單元測試涵蓋擁有者更新成功、非擁有者被拒絕
+- [x] 2.3 實作 `DeleteNoteCommand` + Handler，驗證單元測試涵蓋擁有者刪除成功、非擁有者被拒絕
+- [x] 2.4 實作 `ListNotesQuery` + Handler（直接 Dapper 查詢，不經 Domain 層），驗證單元測試涵蓋只回傳呼叫者自己的筆記（測試覆蓋見 3.3）
+- [x] 2.5 實作 `GetNoteQuery` + Handler，驗證單元測試涵蓋擁有者可查得、非擁有者查詢被拒絕（測試覆蓋見 3.3）
 
 ## 3. Infrastructure
 
