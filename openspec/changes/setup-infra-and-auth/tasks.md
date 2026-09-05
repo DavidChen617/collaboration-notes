@@ -43,7 +43,7 @@
 - [x] 4.6 功能測試：`GivenExpiredOrInvalidSignatureToken_WhenCallingProtectedEndpoint_ThenReturns401`
 - [x] 4.7 功能測試：`GivenSameUserCallsTwice_WhenSecondRequestArrives_ThenNoDuplicateAppUserIsCreated`
 - [x] 4.8 功能測試：`GivenNoToken_WhenCallingHealthCheckEndpoint_ThenReturns200`
-- [ ] 4.9 埋 OpenTelemetry 儀器化，OTLP exporter 指向 SigNoz，驗證呼叫 API 後可在 SigNoz UI 看到對應 trace（instrumentation 已驗證會產生 span，SigNoz UI 部分無法驗證）
+- [ ] 4.9 埋 OpenTelemetry 儀器化，OTLP exporter 指向 SigNoz，驗證呼叫 API 後可在 SigNoz UI 看到對應 trace（instrumentation 已驗證會產生 span；後來也用 `infra/signoz-local/`（`foundryctl`）在本機真的起了一套 SigNoz，API 指向它的 `localhost:4317` 也正常啟動，但這個 sandbox 的 Docker VM 記憶體只有約 2GB，SigNoz 的 ClickHouse 等元件加上本專案自己的 Postgres/Keycloak/API 一起跑會被系統 OOM kill，還沒能在記憶體充足的環境下完整看到一次「呼叫 API → SigNoz UI 出現 trace」，需要在有更多記憶體的機器上重跑這個驗證）
 - [ ] 4.10 撰寫 API 的 k8s manifest，部署後確認 pod Running（manifest 已寫於 `infra/k8s/api/`，未部署確認）
 
 ## 5. 端對端驗證
