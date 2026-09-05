@@ -16,6 +16,13 @@
 ## 3. Infrastructure
 
 > 這個環境一樣沒有可用的 Docker daemon（見 setup-infra-and-auth 的說明），3.2/3.3 的 Testcontainers 測試編譯通過、寫法上重用同一支 `IntegrationTestWebAppFactory`，但在這裡跑會於連線 Docker daemon 那步失敗，邏輯本身已經另外用未納入 repo 的 scratch console app 對本機 Postgres 跑過一輪 Add/Update/Delete/GetById 全部正確。3.3 額外加了 `TestUserContext`（`tests/CoNotes.IntegrationTests/TestUserContext.cs`）取代真正的 `IUserContext`，因為 Query Handler 需要的「目前使用者」在整合測試裡沒有真的 HTTP 請求可以讀。
+>
+> **後續補上（原本刻意省略，後來照 sample 補回）**：`NoteRepository`/`AppUserRepository` 原本直接用 `IDbConnectionFactory` 每次開新連線，沒有 `AppDbContext`/`UnitOfWork`/`TransactionalDecorator` 這層交易管理，理由是「沒有 task 要求、Domain Event 目前也沒人在聽」。後來決定照 CLAUDE.md 本來就寫明的慣例（Command 端 Repository 用 `AppDbContext`/`UnitOfWork`，Query 端才用 `IDbConnectionFactory`）把這層補齊，程式碼完全比照 `sample/src/TodoApp/Infrastructure/Persistence/AppDbContext.cs`／`UnitOfWork.cs`／`Application/Decorators/TransactionalDecorator.cs`：
+> - `Infrastructure/Persistence/AppDbContext.cs`、`UnitOfWork.cs`（新增）
+> - `Application/Decorators/TransactionalDecorator.cs`（新增，加了 `Davish.Sendr.Notification` 套件才有 `IPublisher`/`AddSendrNotification()`）
+> - `NoteRepository`、`AppUserRepository` 改成注入 `AppDbContext` 而不是 `IDbConnectionFactory`，`AddAsync`/`UpdateAsync`/`DeleteAsync` 都呼叫 `appDbContext.TrackAggregateRoot(...)`
+> - `Application/Dependency.cs` 幫所有寫入類 Command（`Upsert/CreateNote/UpdateNote/DeleteNote`）掛上 `.Decorator.With<TransactionalDecorator>()`；Query 維持不掛
+> - 用真的本機 Postgres 重跑過全部 16 個 functional test，交易 begin/commit 與 domain event 派發（目前 0 個 listener，`PublishAsync` no-op）都正常
 
 - [x] 3.1 撰寫新的 `golang-migrate` migration，新增 `Note` table（`Id`、`OwnerAppUserId` 外鍵指向 `AppUser`、`Title`、`Content`、`CreatedAt`、`UpdatedAt`），執行後用 `migrate version` 確認套用成功；驗證 down migration 可正確移除該 table
 - [ ] 3.2 實作 `Note` 的 Dapper Repository（Command 端用），撰寫 Testcontainers 整合測試涵蓋新增/更新/刪除（`NoteRepositoryTests.cs` 已寫，編譯通過，待有 Docker 的環境跑 `dotnet test tests/CoNotes.IntegrationTests` 驗證）

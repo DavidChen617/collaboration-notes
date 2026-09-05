@@ -21,6 +21,10 @@ public static class Dependency
             services.AddScoped<INoteRepository, NoteRepository>();
             services.AddScoped<IUserContext, UserContext>();
 
+            services.AddScoped<IAggregateRootChangeTracker, AggregateRootChangeTracker>();
+            services.AddScoped<AppDbContext>();
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
+
             return services;
         }
     }

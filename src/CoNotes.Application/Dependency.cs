@@ -1,4 +1,5 @@
 using CoNotes.Application.AppUsers.Commands.Upsert;
+using CoNotes.Application.Decorators;
 using CoNotes.Application.Notes.Commands.Create;
 using CoNotes.Application.Notes.Commands.Delete;
 using CoNotes.Application.Notes.Commands.Update;
@@ -15,12 +16,13 @@ public static class Dependency
         public IServiceCollection AddApplication()
         {
             services.AddSendr();
+            services.AddSendrNotification();
 
             services
-                .AddRequestHandler<UpsertAppUserCommand, Result<UpsertAppUserDto>, UpsertAppUserCommandHandler>()
-                .AddRequestHandler<CreateNoteCommand, Result<CreateNoteDto>, CreateNoteCommandHandler>()
-                .AddRequestHandler<UpdateNoteCommand, Result<UpdateNoteDto>, UpdateNoteCommandHandler>()
-                .AddRequestHandler<DeleteNoteCommand, Result, DeleteNoteCommandHandler>()
+                .AddRequestHandler<UpsertAppUserCommand, Result<UpsertAppUserDto>, UpsertAppUserCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
+                .AddRequestHandler<CreateNoteCommand, Result<CreateNoteDto>, CreateNoteCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
+                .AddRequestHandler<UpdateNoteCommand, Result<UpdateNoteDto>, UpdateNoteCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
+                .AddRequestHandler<DeleteNoteCommand, Result, DeleteNoteCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
                 .AddRequestHandler<ListNotesQuery, Result<ListNotesDto>, ListNotesQueryHandler>()
                 .AddRequestHandler<GetNoteQuery, Result<GetNoteDto>, GetNoteQueryHandler>();
 

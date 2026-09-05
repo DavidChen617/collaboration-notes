@@ -1,13 +1,12 @@
 using CoNotes.Domain.AppUsers;
+using CoNotes.Infrastructure.Persistence;
 
 namespace CoNotes.Infrastructure.AppUsers;
 
-internal sealed class AppUserRepository(IDbConnectionFactory dbConnectionFactory) : IAppUserRepository
+internal sealed class AppUserRepository(AppDbContext appDbContext) : IAppUserRepository
 {
     public async Task<AppUser?> FindByKeycloakSubAsync(string keycloakSub, CancellationToken ct)
     {
-        using var connection = await dbConnectionFactory.CreateConnectionAsync(ct);
-
         var cmd = new CommandDefinition(
             $"""
             select
@@ -18,7 +17,10 @@ internal sealed class AppUserRepository(IDbConnectionFactory dbConnectionFactory
             where keycloak_sub = @KeycloakSub;
             """,
             new { KeycloakSub = keycloakSub },
-            cancellationToken: ct);
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
 
         var row = await connection.QuerySingleOrDefaultAsync<AppUserRow>(cmd);
 
@@ -29,17 +31,20 @@ internal sealed class AppUserRepository(IDbConnectionFactory dbConnectionFactory
 
     public async Task<Result> AddAsync(AppUser appUser, CancellationToken ct)
     {
-        using var connection = await dbConnectionFactory.CreateConnectionAsync(ct);
-
         var cmd = new CommandDefinition(
             $"""
             insert into app_users (id, keycloak_sub, created_at)
             values (@{nameof(appUser.Id)}, @{nameof(appUser.KeycloakSub)}, @{nameof(appUser.CreatedOnUtc)});
             """,
             appUser,
-            cancellationToken: ct);
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
 
         await connection.ExecuteAsync(cmd);
+
+        appDbContext.TrackAggregateRoot(appUser);
 
         return Result.Success();
     }

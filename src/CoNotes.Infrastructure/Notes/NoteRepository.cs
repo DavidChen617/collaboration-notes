@@ -1,14 +1,13 @@
 using CoNotes.Domain.Notes;
+using CoNotes.Infrastructure.Persistence;
 using NoteAggregate = CoNotes.Domain.Notes.Note;
 
 namespace CoNotes.Infrastructure.Notes;
 
-internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) : INoteRepository
+internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepository
 {
     public async Task<NoteAggregate?> GetByIdAsync(Guid noteId, CancellationToken ct)
     {
-        using var connection = await dbConnectionFactory.CreateConnectionAsync(ct);
-
         var cmd = new CommandDefinition(
             $"""
             select
@@ -22,7 +21,10 @@ internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) :
             where id = @NoteId;
             """,
             new { NoteId = noteId },
-            cancellationToken: ct);
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
 
         var row = await connection.QuerySingleOrDefaultAsync<NoteRow>(cmd);
 
@@ -33,8 +35,6 @@ internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) :
 
     public async Task<Result> AddAsync(NoteAggregate note, CancellationToken ct)
     {
-        using var connection = await dbConnectionFactory.CreateConnectionAsync(ct);
-
         var cmd = new CommandDefinition(
             $"""
             insert into notes (id, owner_app_user_id, title, content, created_at, updated_at)
@@ -42,17 +42,20 @@ internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) :
                     @{nameof(note.Content)}, @{nameof(note.CreatedOnUtc)}, @{nameof(note.UpdatedOnUtc)});
             """,
             note,
-            cancellationToken: ct);
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
 
         await connection.ExecuteAsync(cmd);
+
+        appDbContext.TrackAggregateRoot(note);
 
         return Result.Success();
     }
 
     public async Task<Result> UpdateAsync(NoteAggregate note, CancellationToken ct)
     {
-        using var connection = await dbConnectionFactory.CreateConnectionAsync(ct);
-
         var cmd = new CommandDefinition(
             $"""
             update notes
@@ -62,26 +65,34 @@ internal sealed class NoteRepository(IDbConnectionFactory dbConnectionFactory) :
             where id = @{nameof(note.Id)};
             """,
             note,
-            cancellationToken: ct);
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
 
         await connection.ExecuteAsync(cmd);
+
+        appDbContext.TrackAggregateRoot(note);
 
         return Result.Success();
     }
 
     public async Task<Result> DeleteAsync(NoteAggregate note, CancellationToken ct)
     {
-        using var connection = await dbConnectionFactory.CreateConnectionAsync(ct);
-
         var cmd = new CommandDefinition(
             $"""
             delete from notes
             where id = @{nameof(note.Id)};
             """,
             note,
-            cancellationToken: ct);
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
 
         await connection.ExecuteAsync(cmd);
+
+        appDbContext.TrackAggregateRoot(note);
 
         return Result.Success();
     }
