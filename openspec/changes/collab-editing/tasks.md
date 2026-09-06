@@ -43,6 +43,8 @@
 - [x] 4.4 功能測試：`GivenCollaborator_WhenListingOrReadingOrUpdatingNote_ThenSucceeds`、`GivenUnrelatedUser_WhenAccessingNote_ThenRejected`（涵蓋 `specs/notes/spec.md` 這次修改的三個 Requirement；額外加了 `GivenOwner_WhenRemovingCollaborator_ThenCollaboratorCanNoLongerAccessTheNote`，都在 `tests/CoNotes.FunctionalTests/NoteCollabEndpointTests.cs`）
 - [x] 4.5 架構測試：驗證 `CoNotes.Domain` 不參考 `CoNotes.Infrastructure`／`CoNotes.Api`（沿用既有的 `LayerDependencyTests`，組件層級檢查，新增的型別都在既有專案內，自動涵蓋，不需要新測試）
 
+> **額外補上**：實作 5.4/6.1 需要的 `GetNoteHistoryQuery`(`GET /notes/{noteId}/history?at=`) 時發現一個跟這個 change 本身無關、但是真的存在的 bug：`AppDbContext` 只在 commit/rollback 時處置 `Transaction`，從來沒有處置底層真正的 `DbConnection`——因為它自己沒有實作 `IDisposable`/`IAsyncDisposable`，DI container 在 scope 結束時不知道要收回這個連線。`GetNoteHistoryQueryHandler` 是第一個在「非 Command、沒有 `TransactionalDecorator` 開交易」的情境下呼叫 `INoteRepository` 的 Query，讓這個連線洩漏第一次真的把 Npgsql 連線池榨乾、拖垮同一個測試 process 裡後面才跑到的 `AppUserEndpointTests`（一開始以為是新測試本身的 race，實際上跑單一測試檔完全正常，加進整個 `CoNotes.slnx` 一起跑才會重現，且失敗時那個測試耗時 15~19 秒——明顯是連線池等待逾時的徵兆）。已經在 `AppDbContext` 補上 `IDisposable`/`IAsyncDisposable`（兩個都要，因為 IntegrationTests 有些地方用同步的 `using var scope = ...`，只實作 `IAsyncDisposable` 會讓 DI container 在同步處置路徑直接丟例外）。這個修正影響所有本來就會用到 `AppDbContext` 的 Command Handler，不只是這次新加的 Query，理論上修好了一個在這之前就存在、只是還沒被逼出來的連線洩漏。
+
 ## 5. 前端整合
 
 - [ ] 5.1 在 Tiptap 編輯器加上官方的 Yjs 協作擴充套件，串接 SignalR 當傳輸層

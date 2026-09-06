@@ -127,6 +127,33 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, getResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task GivenOwner_WhenGettingNoteHistory_ThenReturns200WithEmptyHistoryForANoteWithNoLiveEdits()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var noteId = await CreateNoteAsync(owner, "Title", "Content");
+
+        var response = await owner.GetAsync($"{NotesEndpoint}/{noteId}/history");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<NoteHistoryResponse>();
+        Assert.NotNull(body);
+        Assert.Null(body.BaseSnapshot);
+        Assert.Empty(body.SubsequentUpdates);
+    }
+
+    [Fact]
+    public async Task GivenUnrelatedUser_WhenGettingNoteHistory_ThenIsRejected()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var unrelatedUser = await CreateProvisionedClientAsync();
+        var noteId = await CreateNoteAsync(owner, "Title", "Content");
+
+        var response = await unrelatedUser.GetAsync($"{NotesEndpoint}/{noteId}/history");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private async Task<HttpClient> CreateProvisionedClientAsync()
     {
         var client = factory.CreateClient();
@@ -177,6 +204,8 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     private sealed record JoinResponse(Guid NoteId);
 
     private sealed record AppUserResponse(Guid AppUserId);
+
+    private sealed record NoteHistoryResponse(byte[]? BaseSnapshot, List<byte[]> SubsequentUpdates);
 
     private sealed record NoteItem(Guid NoteId, string Title, string Content);
 

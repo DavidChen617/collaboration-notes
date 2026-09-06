@@ -9,6 +9,7 @@ using CoNotes.Application.Notes.Commands.Share;
 using CoNotes.Application.Notes.Commands.Update;
 using CoNotes.Application.Notes.Queries.Get;
 using CoNotes.Application.Notes.Queries.GetGraph;
+using CoNotes.Application.Notes.Queries.GetHistory;
 using CoNotes.Application.Notes.Queries.List;
 using CoNotes.Application.Notes.Queries.Search;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,7 +37,8 @@ public static class Dependency
                 .AddRequestHandler<ListNotesQuery, Result<ListNotesDto>, ListNotesQueryHandler>()
                 .AddRequestHandler<GetNoteQuery, Result<GetNoteDto>, GetNoteQueryHandler>()
                 .AddRequestHandler<SearchNotesByTitleQuery, Result<SearchNotesByTitleDto>, SearchNotesByTitleQueryHandler>()
-                .AddRequestHandler<GetNoteGraphQuery, Result<NoteGraphDto>, GetNoteGraphQueryHandler>();
+                .AddRequestHandler<GetNoteGraphQuery, Result<NoteGraphDto>, GetNoteGraphQueryHandler>()
+                .AddRequestHandler<GetNoteHistoryQuery, Result<GetNoteHistoryDto>, GetNoteHistoryQueryHandler>();
 
             return services;
         }
