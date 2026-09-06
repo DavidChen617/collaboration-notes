@@ -1,12 +1,11 @@
-using CoNotes.Application.Abstractions;
-using CoNotes.Domain.Notes;
 using NoteAggregate = CoNotes.Domain.Notes.Note;
 
 namespace CoNotes.Application.Notes.Commands.Create;
 
 internal sealed class CreateNoteCommandHandler(
     IUserContext userContext,
-    INoteRepository noteRepository
+    INoteRepository noteRepository,
+    TimeProvider timeProvider
 ) : ICommandHandler<CreateNoteCommand, Result<CreateNoteDto>>
 {
     public async Task<Result<CreateNoteDto>> HandleAsync(
@@ -16,7 +15,7 @@ internal sealed class CreateNoteCommandHandler(
     {
         var ownerAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
-        var note = NoteAggregate.Create(ownerAppUserId, command.Title, command.Content);
+        var note = NoteAggregate.Create(ownerAppUserId, command.Title, command.Content, timeProvider.GetUtcNow().UtcDateTime);
 
         var requestedTargetNoteIds = NoteLinkContentParser.ExtractLinkedNoteIds(command.Content);
         var ownedTargetNoteIds = await noteRepository.FindOwnedNoteIdsAsync(ownerAppUserId, requestedTargetNoteIds, cancellationToken);

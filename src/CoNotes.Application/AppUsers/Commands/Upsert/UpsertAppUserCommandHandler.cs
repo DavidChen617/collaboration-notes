@@ -4,7 +4,8 @@ using AppUserAggregate = CoNotes.Domain.AppUsers.AppUser;
 namespace CoNotes.Application.AppUsers.Commands.Upsert;
 
 internal sealed class UpsertAppUserCommandHandler(
-    IAppUserRepository appUserRepository
+    IAppUserRepository appUserRepository,
+    TimeProvider timeProvider
 ) : ICommandHandler<UpsertAppUserCommand, Result<UpsertAppUserDto>>
 {
     public async Task<Result<UpsertAppUserDto>> HandleAsync(
@@ -16,7 +17,7 @@ internal sealed class UpsertAppUserCommandHandler(
         if (existingAppUser is not null)
             return new UpsertAppUserDto(existingAppUser.Id);
 
-        var appUser = AppUserAggregate.Create(command.KeycloakSub);
+        var appUser = AppUserAggregate.Create(command.KeycloakSub, timeProvider.GetUtcNow().UtcDateTime);
 
         await appUserRepository.AddAsync(appUser, cancellationToken);
 

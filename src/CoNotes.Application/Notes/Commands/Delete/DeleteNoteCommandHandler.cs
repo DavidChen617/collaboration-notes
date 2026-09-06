@@ -1,6 +1,3 @@
-using CoNotes.Application.Abstractions;
-using CoNotes.Domain.Notes;
-
 namespace CoNotes.Application.Notes.Commands.Delete;
 
 internal sealed class DeleteNoteCommandHandler(

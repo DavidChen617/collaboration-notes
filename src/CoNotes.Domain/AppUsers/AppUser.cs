@@ -14,9 +14,9 @@ public sealed class AppUser : AggregateRoot
         CreatedOnUtc = createdAt;
     }
 
-    public static AppUser Create(string keycloakSub)
+    public static AppUser Create(string keycloakSub, DateTime nowUtc)
     {
-        var appUser = new AppUser(Guid.CreateVersion7(), keycloakSub, DateTime.UtcNow);
+        var appUser = new AppUser(Guid.CreateVersion7(), keycloakSub, nowUtc);
 
         appUser.RaiseDomainEvent(new AppUserProvisionedDomainEvent(appUser.Id, keycloakSub));
 

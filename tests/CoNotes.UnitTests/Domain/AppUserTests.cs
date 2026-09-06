@@ -10,7 +10,7 @@ public class AppUserTests
     {
         var keycloakSub = Guid.NewGuid().ToString();
 
-        var appUser = AppUserAggregate.Create(keycloakSub);
+        var appUser = AppUserAggregate.Create(keycloakSub, DateTime.UtcNow);
 
         var domainEvent = Assert.Single(appUser.DomainEvents);
         var provisionedEvent = Assert.IsType<AppUserProvisionedDomainEvent>(domainEvent);

@@ -32,10 +32,9 @@ public sealed class Note : AggregateRoot
         _linkedNoteIds = linkedNoteIds?.ToHashSet() ?? [];
     }
 
-    public static Note Create(Guid ownerAppUserId, string title, string content)
+    public static Note Create(Guid ownerAppUserId, string title, string content, DateTime nowUtc)
     {
-        var now = DateTime.UtcNow;
-        var note = new Note(Guid.CreateVersion7(), ownerAppUserId, title, content, now, now);
+        var note = new Note(Guid.CreateVersion7(), ownerAppUserId, title, content, nowUtc, nowUtc);
 
         note.RaiseDomainEvent(new NoteCreatedDomainEvent(note.Id, ownerAppUserId));
 
@@ -55,14 +54,14 @@ public sealed class Note : AggregateRoot
         return new(id, ownerAppUserId, title, content, createdAt, updatedAt, linkedNoteIds);
     }
 
-    public Result Update(Guid requestingAppUserId, string title, string content)
+    public Result Update(Guid requestingAppUserId, string title, string content, DateTime nowUtc)
     {
         if (requestingAppUserId != OwnerAppUserId)
             return new Error("Note.Update", "使用者沒有權限更新這篇筆記!", ErrorType.BadRequest);
 
         Title = title;
         Content = content;
-        UpdatedOnUtc = DateTime.UtcNow;
+        UpdatedOnUtc = nowUtc;
 
         return Result.Success();
     }

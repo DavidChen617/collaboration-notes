@@ -20,7 +20,7 @@ public class UpsertAppUserCommandHandlerTests
             .AddAsync(Arg.Any<AppUserAggregate>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success());
 
-        var handler = new UpsertAppUserCommandHandler(appUserRepository);
+        var handler = new UpsertAppUserCommandHandler(appUserRepository, TimeProvider.System);
         var command = new UpsertAppUserCommand(keycloakSub);
 
         var result = await handler.HandleAsync(command, CancellationToken.None);
@@ -36,14 +36,14 @@ public class UpsertAppUserCommandHandlerTests
     public async Task GivenAppUserAlreadyExists_WhenHandlingUpsertAppUserCommand_ThenReturnsExistingAppUserWithoutDuplication()
     {
         var keycloakSub = Guid.NewGuid().ToString();
-        var existingAppUser = AppUserAggregate.Create(keycloakSub);
+        var existingAppUser = AppUserAggregate.Create(keycloakSub, DateTime.UtcNow);
 
         var appUserRepository = Substitute.For<IAppUserRepository>();
         appUserRepository
             .FindByKeycloakSubAsync(keycloakSub, Arg.Any<CancellationToken>())
             .Returns(existingAppUser);
 
-        var handler = new UpsertAppUserCommandHandler(appUserRepository);
+        var handler = new UpsertAppUserCommandHandler(appUserRepository, TimeProvider.System);
         var command = new UpsertAppUserCommand(keycloakSub);
 
         var result = await handler.HandleAsync(command, CancellationToken.None);

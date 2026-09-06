@@ -1,4 +1,3 @@
-using CoNotes.Domain.AppUsers;
 using Microsoft.AspNetCore.Http;
 
 namespace CoNotes.Infrastructure;

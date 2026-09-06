@@ -10,7 +10,7 @@ public class NoteTests
     {
         var ownerAppUserId = Guid.NewGuid();
 
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
         Assert.Equal(ownerAppUserId, note.OwnerAppUserId);
         Assert.Equal("Title", note.Title);
@@ -26,9 +26,9 @@ public class NoteTests
     public void GivenOwner_WhenUpdating_ThenSucceedsAndAppliesChanges()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
-        var result = note.Update(ownerAppUserId, "New title", "New content");
+        var result = note.Update(ownerAppUserId, "New title", "New content", DateTime.UtcNow);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("New title", note.Title);
@@ -40,9 +40,9 @@ public class NoteTests
     {
         var ownerAppUserId = Guid.NewGuid();
         var otherAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
-        var result = note.Update(otherAppUserId, "New title", "New content");
+        var result = note.Update(otherAppUserId, "New title", "New content", DateTime.UtcNow);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("Note.Update", result.Error.Code);
@@ -54,7 +54,7 @@ public class NoteTests
     public void GivenLinkTargetOwnedBySameUser_WhenResolveLinks_ThenLinkAccepted()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var targetNoteId = Guid.NewGuid();
 
         var result = note.ResolveLinks([targetNoteId], new HashSet<Guid> { targetNoteId });
@@ -67,7 +67,7 @@ public class NoteTests
     public void GivenLinkTargetOwnedByAnotherUser_WhenResolveLinks_ThenLinkRejected()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var targetNoteId = Guid.NewGuid();
 
         var result = note.ResolveLinks([targetNoteId], new HashSet<Guid>());
@@ -81,7 +81,7 @@ public class NoteTests
     public void GivenNoteContentChanged_WhenLinksResolved_ThenNoteLinkedToEventsRaised()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var targetNoteId = Guid.NewGuid();
 
         var result = note.ResolveLinks([targetNoteId], new HashSet<Guid> { targetNoteId });
@@ -97,7 +97,7 @@ public class NoteTests
     public void GivenLinkRemovedFromContent_WhenLinksResolved_ThenNoteLinkRemovedEventRaised()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var targetNoteId = Guid.NewGuid();
         note.ResolveLinks([targetNoteId], new HashSet<Guid> { targetNoteId });
 
@@ -115,7 +115,7 @@ public class NoteTests
     public void GivenOwner_WhenDeleting_ThenSucceedsAndRaisesNoteDeletedEvent()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
         var result = note.Delete(ownerAppUserId);
 
@@ -130,7 +130,7 @@ public class NoteTests
     {
         var ownerAppUserId = Guid.NewGuid();
         var otherAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
         var result = note.Delete(otherAppUserId);
 

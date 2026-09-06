@@ -21,7 +21,7 @@ public class CreateNoteCommandHandlerTests
             .AddAsync(Arg.Any<NoteAggregate>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success());
 
-        var handler = new CreateNoteCommandHandler(userContext, noteRepository);
+        var handler = new CreateNoteCommandHandler(userContext, noteRepository, TimeProvider.System);
         var command = new CreateNoteCommand("Title", "Content");
 
         var result = await handler.HandleAsync(command, CancellationToken.None);

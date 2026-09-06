@@ -1,6 +1,3 @@
-using CoNotes.Application.Abstractions;
-using Dapper;
-
 namespace CoNotes.Application.Notes.Queries.GetGraph;
 
 internal sealed class GetNoteGraphQueryHandler(

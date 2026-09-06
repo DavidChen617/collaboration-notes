@@ -15,10 +15,10 @@ public sealed class NoteRepositoryTests(IntegrationTestWebAppFactory factory)
         var appUserRepository = scope.ServiceProvider.GetRequiredService<IAppUserRepository>();
         var noteRepository = scope.ServiceProvider.GetRequiredService<INoteRepository>();
 
-        var appUser = AppUser.Create(Guid.NewGuid().ToString());
+        var appUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
         await appUserRepository.AddAsync(appUser, CancellationToken.None);
 
-        var note = NoteAggregate.Create(appUser.Id, "Title", "Content");
+        var note = NoteAggregate.Create(appUser.Id, "Title", "Content", DateTime.UtcNow);
         await noteRepository.AddAsync(note, CancellationToken.None);
 
         var loaded = await noteRepository.GetByIdAsync(note.Id, CancellationToken.None);
@@ -36,13 +36,13 @@ public sealed class NoteRepositoryTests(IntegrationTestWebAppFactory factory)
         var appUserRepository = scope.ServiceProvider.GetRequiredService<IAppUserRepository>();
         var noteRepository = scope.ServiceProvider.GetRequiredService<INoteRepository>();
 
-        var appUser = AppUser.Create(Guid.NewGuid().ToString());
+        var appUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
         await appUserRepository.AddAsync(appUser, CancellationToken.None);
 
-        var note = NoteAggregate.Create(appUser.Id, "Title", "Content");
+        var note = NoteAggregate.Create(appUser.Id, "Title", "Content", DateTime.UtcNow);
         await noteRepository.AddAsync(note, CancellationToken.None);
 
-        note.Update(appUser.Id, "New title", "New content");
+        note.Update(appUser.Id, "New title", "New content", DateTime.UtcNow);
         await noteRepository.UpdateAsync(note, CancellationToken.None);
 
         var reloaded = await noteRepository.GetByIdAsync(note.Id, CancellationToken.None);
@@ -59,10 +59,10 @@ public sealed class NoteRepositoryTests(IntegrationTestWebAppFactory factory)
         var appUserRepository = scope.ServiceProvider.GetRequiredService<IAppUserRepository>();
         var noteRepository = scope.ServiceProvider.GetRequiredService<INoteRepository>();
 
-        var appUser = AppUser.Create(Guid.NewGuid().ToString());
+        var appUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
         await appUserRepository.AddAsync(appUser, CancellationToken.None);
 
-        var note = NoteAggregate.Create(appUser.Id, "Title", "Content");
+        var note = NoteAggregate.Create(appUser.Id, "Title", "Content", DateTime.UtcNow);
         await noteRepository.AddAsync(note, CancellationToken.None);
 
         note.Delete(appUser.Id);

@@ -1,8 +1,6 @@
-using CoNotes.Domain.AppUsers;
 using CoNotes.Domain.Notes;
 using CoNotes.Infrastructure.AppUsers;
 using CoNotes.Infrastructure.Notes;
-using CoNotes.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,6 +22,8 @@ public static class Dependency
             services.AddScoped<IAggregateRootChangeTracker, AggregateRootChangeTracker>();
             services.AddScoped<AppDbContext>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+            services.AddSingleton(TimeProvider.System);
 
             return services;
         }

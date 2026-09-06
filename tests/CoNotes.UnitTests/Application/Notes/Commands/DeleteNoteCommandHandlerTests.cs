@@ -12,7 +12,7 @@ public class DeleteNoteCommandHandlerTests
     public async Task GivenOwnerDeletesTheirOwnNote_WhenHandling_ThenDeletesIt()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(ownerAppUserId);
@@ -34,7 +34,7 @@ public class DeleteNoteCommandHandlerTests
     {
         var ownerAppUserId = Guid.NewGuid();
         var otherAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(otherAppUserId);

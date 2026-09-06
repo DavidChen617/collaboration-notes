@@ -1,5 +1,4 @@
 using CoNotes.Domain.Notes;
-using CoNotes.Infrastructure.Persistence;
 using NoteAggregate = CoNotes.Domain.Notes.Note;
 
 namespace CoNotes.Infrastructure.Notes;

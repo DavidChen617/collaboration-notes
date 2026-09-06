@@ -1,11 +1,9 @@
-using CoNotes.Application.Abstractions;
-using CoNotes.Domain.Notes;
-
 namespace CoNotes.Application.Notes.Commands.Update;
 
 internal sealed class UpdateNoteCommandHandler(
     IUserContext userContext,
-    INoteRepository noteRepository
+    INoteRepository noteRepository,
+    TimeProvider timeProvider
 ) : ICommandHandler<UpdateNoteCommand, Result<UpdateNoteDto>>
 {
     public async Task<Result<UpdateNoteDto>> HandleAsync(
@@ -20,7 +18,7 @@ internal sealed class UpdateNoteCommandHandler(
 
         var requestingAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
-        var updateResult = note.Update(requestingAppUserId, command.Title, command.Content);
+        var updateResult = note.Update(requestingAppUserId, command.Title, command.Content, timeProvider.GetUtcNow().UtcDateTime);
 
         if (!updateResult.IsSuccess)
             return updateResult.Error;

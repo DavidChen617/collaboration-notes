@@ -18,7 +18,7 @@ public sealed class AppUserRepositoryTests(IntegrationTestWebAppFactory factory)
         var firstLookup = await repository.FindByKeycloakSubAsync(keycloakSub, CancellationToken.None);
         Assert.Null(firstLookup);
 
-        var created = AppUserAggregate.Create(keycloakSub);
+        var created = AppUserAggregate.Create(keycloakSub, DateTime.UtcNow);
         await repository.AddAsync(created, CancellationToken.None);
 
         var secondLookup = await repository.FindByKeycloakSubAsync(keycloakSub, CancellationToken.None);

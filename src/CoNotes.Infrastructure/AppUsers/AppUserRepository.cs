@@ -1,6 +1,3 @@
-using CoNotes.Domain.AppUsers;
-using CoNotes.Infrastructure.Persistence;
-
 namespace CoNotes.Infrastructure.AppUsers;
 
 internal sealed class AppUserRepository(AppDbContext appDbContext) : IAppUserRepository

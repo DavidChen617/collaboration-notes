@@ -1,6 +1,3 @@
-using CoNotes.Application.Abstractions;
-using Dapper;
-
 namespace CoNotes.Application.Notes.Queries.List;
 
 internal sealed class ListNotesQueryHandler(

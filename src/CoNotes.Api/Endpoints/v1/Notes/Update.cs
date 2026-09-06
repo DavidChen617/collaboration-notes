@@ -1,5 +1,4 @@
 using CoNotes.Application.Notes.Commands.Update;
-using Microsoft.AspNetCore.Mvc;
 
 namespace CoNotes.Api.Endpoints.v1.Notes;
 

@@ -12,7 +12,7 @@ public class UpdateNoteCommandHandlerTests
     public async Task GivenOwnerUpdatesTheirOwnNote_WhenHandling_ThenAppliesTheUpdateAndReturnsIt()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Old title", "Old content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Old title", "Old content", DateTime.UtcNow);
 
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(ownerAppUserId);
@@ -20,7 +20,7 @@ public class UpdateNoteCommandHandlerTests
         var noteRepository = Substitute.For<INoteRepository>();
         noteRepository.GetByIdAsync(note.Id, Arg.Any<CancellationToken>()).Returns(note);
 
-        var handler = new UpdateNoteCommandHandler(userContext, noteRepository);
+        var handler = new UpdateNoteCommandHandler(userContext, noteRepository, TimeProvider.System);
         var command = new UpdateNoteCommand(note.Id, "New title", "New content");
 
         var result = await handler.HandleAsync(command, CancellationToken.None);
@@ -36,7 +36,7 @@ public class UpdateNoteCommandHandlerTests
     {
         var ownerAppUserId = Guid.NewGuid();
         var otherAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Old title", "Old content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Old title", "Old content", DateTime.UtcNow);
 
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(otherAppUserId);
@@ -44,7 +44,7 @@ public class UpdateNoteCommandHandlerTests
         var noteRepository = Substitute.For<INoteRepository>();
         noteRepository.GetByIdAsync(note.Id, Arg.Any<CancellationToken>()).Returns(note);
 
-        var handler = new UpdateNoteCommandHandler(userContext, noteRepository);
+        var handler = new UpdateNoteCommandHandler(userContext, noteRepository, TimeProvider.System);
         var command = new UpdateNoteCommand(note.Id, "New title", "New content");
 
         var result = await handler.HandleAsync(command, CancellationToken.None);
@@ -58,7 +58,7 @@ public class UpdateNoteCommandHandlerTests
     public async Task GivenValidLinks_WhenSaveNoteCommandHandled_ThenNoteLinkRepositoryCalledWithReplacementSet()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Old title", "Old content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Old title", "Old content", DateTime.UtcNow);
         var targetNoteId = Guid.NewGuid();
         var newContent = $"""<p>See <span data-note-link="{targetNoteId}">Other note</span></p>""";
 
@@ -71,7 +71,7 @@ public class UpdateNoteCommandHandlerTests
             .FindOwnedNoteIdsAsync(ownerAppUserId, Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Contains(targetNoteId)), Arg.Any<CancellationToken>())
             .Returns(new HashSet<Guid> { targetNoteId });
 
-        var handler = new UpdateNoteCommandHandler(userContext, noteRepository);
+        var handler = new UpdateNoteCommandHandler(userContext, noteRepository, TimeProvider.System);
         var command = new UpdateNoteCommand(note.Id, "New title", newContent);
 
         var result = await handler.HandleAsync(command, CancellationToken.None);
@@ -86,7 +86,7 @@ public class UpdateNoteCommandHandlerTests
     public async Task GivenLinkToNoteNotOwnedByCaller_WhenHandling_ThenIsRejectedAndDoesNotPersist()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Old title", "Old content");
+        var note = NoteAggregate.Create(ownerAppUserId, "Old title", "Old content", DateTime.UtcNow);
         var otherUsersNoteId = Guid.NewGuid();
         var newContent = $"""<p>See <span data-note-link="{otherUsersNoteId}">Other note</span></p>""";
 
@@ -99,7 +99,7 @@ public class UpdateNoteCommandHandlerTests
             .FindOwnedNoteIdsAsync(ownerAppUserId, Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(new HashSet<Guid>());
 
-        var handler = new UpdateNoteCommandHandler(userContext, noteRepository);
+        var handler = new UpdateNoteCommandHandler(userContext, noteRepository, TimeProvider.System);
         var command = new UpdateNoteCommand(note.Id, "New title", newContent);
 
         var result = await handler.HandleAsync(command, CancellationToken.None);
@@ -116,7 +116,7 @@ public class UpdateNoteCommandHandlerTests
         var noteRepository = Substitute.For<INoteRepository>();
         noteRepository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((NoteAggregate?)null);
 
-        var handler = new UpdateNoteCommandHandler(userContext, noteRepository);
+        var handler = new UpdateNoteCommandHandler(userContext, noteRepository, TimeProvider.System);
         var command = new UpdateNoteCommand(Guid.NewGuid(), "Title", "Content");
 
         var result = await handler.HandleAsync(command, CancellationToken.None);
