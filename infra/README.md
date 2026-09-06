@@ -132,6 +132,12 @@ DNS 記錄（`api.davish.net`/`auth.davish.net` 的 CNAME 指到 tunnel）由 Cl
   （`x509: certificate signed by unknown authority`）。已在 `infra/k8s/ingress-nginx/application.yaml`
   用 `helm.valuesObject` 設 `controller.admissionWebhooks.enabled: false` 關掉，這是 ArgoCD + 這個
   chart 的已知相容性問題，不是這個專案獨有的設定錯誤。
+- **Keycloak `--import-realm` 只在 realm 第一次建立時匯入**：改了
+  `infra/k8s/keycloak/realm-export/conotes-realm.json`/鏡像 `configmap-realm-import.yaml` 之後，只要
+  `conotes` 這個 realm 已經存在，重啟/重建 Keycloak pod 並**不會**重新套用檔案裡的新內容(踩過兩次：
+  一次是 admin realm role 沒生效，這次是 SPA client 的 `redirectUris` 換成 `davish.net` 後一直沒真的
+  生效，導致登入報 `Invalid parameter: redirect_uri`)。要讓既有 realm 的變更生效，得用 Keycloak
+  Admin API 或後台手動改，不能只靠改檔案+重啟。
 
 ## 本機開發（docker-compose）
 
