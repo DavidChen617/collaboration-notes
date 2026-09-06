@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/davidchen617/conotes-api:2ba0e03e3eb6eadc4b129082146af1ad82dc5834
+          image: ghcr.io/davidchen617/conotes-api:6157d6aada81a450e05b4365452efd18c6aa206f
           ports:
             - containerPort: 8080
           envFrom:
