@@ -3,6 +3,34 @@
 記錄 `setup-infra-and-auth` 這個 change 的部署順序與已知限制，供之後重建環境參考。完整的決策理由見
 [`openspec/changes/setup-infra-and-auth/design.md`](../openspec/changes/setup-infra-and-auth/design.md)。
 
+## 待辦事項（改用 davish.net 這個真實網域時中斷，還沒完成）
+
+- [x] ~~前端網域待確認~~：確定用 `https://www.davish.net/conote`（自訂網域下的子路徑，不是 GitHub Pages
+      預設網址）。已完成：`infra/k8s/keycloak/realm-export/conotes-realm.json` 跟鏡像
+      `infra/k8s/keycloak/configmap-realm-import.yaml` 的 SPA client `redirectUris` 改成
+      `https://www.davish.net/conote/*`、`webOrigins` 改成 `https://www.davish.net`（Web Origin 只看
+      protocol+host+port，不含路徑，所以不用帶 `/conote`）；`.github/workflows/deploy.yml` 的
+      `--base-href` 改成 `/conote/`，並新增一步把建置輸出包進 `conote/` 子目錄再上傳（GitHub Pages
+      完全照 artifact 的目錄結構原樣提供服務，這是唯一能讓自訂網域服務子路徑的方式）——已在本機用
+      `pnpm build --base-href /conote/` 實際跑過一次，確認輸出結構跟 `index.html` 的
+      `<base href="/conote/">` 都正確。repo 的 GitHub Pages 設定已透過 `gh api` 建立並把 `cname` 設成
+      `www.davish.net`（`https_enforced` 目前是 `false`，等 DNS 生效、GitHub 核發憑證後會自動變
+      `true`）。
+- [ ] **DNS 記錄**：Cloudflare 的 `davish.net` zone 裡要新增一筆 `CNAME`，`www` → `davidchen617.github.io`
+      （這是一般 DNS 記錄，**不是** Cloudflare Tunnel 的 Public Hostname——GitHub Pages 是 GitHub 自己
+      的公開服務，不經過你的 tunnel/叢集）。
+- [ ] **Cloudflare Tunnel 的 Public Hostname 規則**：你已經建立 tunnel，還需要新增
+      `api.davish.net` → `ingress-nginx-controller.ingress-nginx.svc.cluster.local:80` 這條規則。
+      **`auth.davish.net` 你這次沒提到，但 Keycloak 的登入是瀏覽器直接導向的流程（design.md 決定 9），
+      沒有這條規則登入會整個失敗——要不要一起加上？**
+- [ ] 拿到 tunnel 的 token 後填進 `.env` 的 `TUNNEL_TOKEN=`，跑一次 `infra/scripts/apply-secrets.sh`。
+      詳細步驟見下方「Cloudflare Tunnel」章節。
+- [ ] `openspec/changes/cicd-deployment` task 3.3：repo 的 GitHub Actions workflow 權限要手動切成
+      「Read and write permissions」（`Settings → Actions → General → Workflow permissions`），這個 API
+      呼叫被 Claude Code 的權限分類器擋下，需要手動處理。
+- [ ] 這一輪關於 `davish.net`／Cloudflare Tunnel／`apply-secrets.sh` 改回單一檔案的改動目前都還**沒
+      commit**（本地 working tree），也還沒 push。
+
 ## 部署順序
 
 1. **Postgres**（`infra/k8s/postgres/`）：單一 instance，透過 init script（`configmap-init.yaml`）在第一次啟動時建立 `app`、`keycloak` 兩個 database 與對應帳號。
@@ -11,47 +39,91 @@
 4. **SigNoz**（`infra/k8s/signoz/application.yaml`）：以官方 Helm chart 部署（child ArgoCD Application）。
 5. **ingress-nginx controller**（`infra/k8s/ingress-nginx/application.yaml`）：以官方 Helm chart 部署（child ArgoCD Application）。
 6. **API**（`infra/k8s/api/`）：JWT Bearer 的 `Authority` 指向 Keycloak Realm、OTLP exporter 指向 SigNoz 的 otel-collector。
-7. **Ingress 規則**（`infra/k8s/ingress/ingress.yaml`）：`api.<domain>` → API Service、`auth.<domain>` → Keycloak Service。
-8. **Cloudflare Tunnel**（`infra/cloudflared/config.yml`）：把單一目標指向 ingress-nginx controller 的 Service（這一步在 repo 之外，透過 Cloudflare Zero Trust 操作)。
+7. **Ingress 規則**（`infra/k8s/ingress/ingress.yaml`）：`api.davish.net` → API Service、`auth.davish.net` → Keycloak Service。
+8. **Cloudflare Tunnel**（`infra/k8s/cloudflared/`）：跑在叢集裡的 Deployment，用 token 模式連回 Cloudflare——tunnel 本身跟 public hostname 路由規則都在 Cloudflare Zero Trust 後台設定，不是本地檔案。建立步驟見下方「Cloudflare Tunnel」章節。
 9. **ArgoCD**（`infra/argocd/application.yaml`）：指向 `infra/k8s`，`directory.recurse: true` 讓它能找到巢狀資料夾裡的 manifest。
 
-## 密鑰管理（PayPal／AI provider）
+## 密鑰管理（PayPal／AI provider／DB／Keycloak admin／Cloudflare Tunnel）
 
-`cicd-deployment` change 的決定：這類第三方密鑰完全不進 CI/CD、也不進 git（見
+`cicd-deployment` change 的決定：這類密鑰完全不進 CI/CD、也不進 git（見
 `openspec/changes/cicd-deployment/design.md` 決定 5）。維護方式是伺服器端一份
-`.env` 檔案，手動執行 `scripts/apply-secrets.sh` 套用成 k8s Secret；API 的
-Deployment 透過 `envFrom: secretRef` 把裡面每個 key 直接注入成環境變數（見
-`infra/k8s/api/deployment.yaml`）。
+`.env` 檔案，手動執行 `infra/scripts/apply-secrets.sh` 套用成對應的 k8s Secret；
+`infra/k8s` 底下有對應這幾個 Secret 的「空殼」manifest（只宣告存在與 key 名稱，
+`stringData` 是空字串），讓 ArgoCD 能在新叢集 bootstrap 時建出這些物件，但
+`infra/argocd/application.yaml` 對它們設定了 `ignoreDifferences`（忽略
+`data`/`stringData`），所以 ArgoCD 不會把伺服器端套用的真實內容用 `selfHeal`
+蓋回空殼，也不會因為内容跟 git 不同就當成 drift。
 
-- **`.env` 放在哪裡**：叢集任一台能操作 `kubectl` 的節點上，路徑固定用
+- **`.env` 放在哪裡**：叢集任一台能操作 `kubectl` 的節點上，單一檔案，路徑固定用
   `/etc/conotes/secrets.env`（`apply-secrets.sh` 的預設路徑，也可以在執行時
-  另外指定路徑當第一個參數）。這份檔案不進 git，只存在伺服器端。
-- **需要哪些變數**：對應 `CoNotes.Api` 實際會讀的 configuration key，把 `:`
-  換成 `__`：
+  另外指定路徑當第一個參數）。這份檔案不進 git，只存在伺服器端，腳本會依照
+  key 名稱自動分流到對應的 Secret：
+
   ```
+  # -> Secret conotes-secrets（API 用 envFrom 整包注入，key 對應
+  #    CoNotes.Api 的 configuration key，把 : 換成 __；Ai__* 允許留空，
+  #    程式碼會把對應的 provider 當作「不可用」跳過，不會讓 API 啟動失敗）
   PayPal__ClientId=...
   PayPal__ClientSecret=...
   PayPal__WebhookId=...
   Ai__Groq__ApiKey=...
   Ai__Gemini__ApiKey=...
+
+  # -> Secret postgres-credentials（Postgres/Keycloak 的 Deployment 用
+  #    secretKeyRef 個別讀取單一 key）
+  postgres-password=...
+  app-password=...
+  keycloak-password=...
+
+  # -> Secret keycloak-credentials（Keycloak admin 帳號登入用，注意跟
+  #    上面的 keycloak-password 是兩件不同的事：那個是 Keycloak 拿去連
+  #    資料庫用的密碼，這個是 Keycloak 管理後台網頁登入密碼）
+  admin-password=...
+
+  # -> Secret cloudflared-credentials（見下方「Cloudflare Tunnel」章節）
+  TUNNEL_TOKEN=...
   ```
-  這些 provider 各自允許值是空字串／缺這個 key——程式碼會把對應的 provider
-  當作「不可用」跳過(AI provider chain)或讓那個功能回傳明確的失敗訊息(PayPal)，
-  不會讓整個 API 啟動失敗，方便在還沒申請到某個 provider 的憑證時先部署其他部分。
+
 - **什麼時候要重新執行**：第一次建立叢集時、或任何一組密鑰輪替/更新時。指令：
   ```bash
-  ./scripts/apply-secrets.sh /etc/conotes/secrets.env
+  ./infra/scripts/apply-secrets.sh /etc/conotes/secrets.env
   ```
-  執行後 Secret 內容更新，但**不會**自動讓 API pod 重新啟動去讀新的環境變數
-  （k8s 的 Secret 更新不會觸發已存在 pod 的 env 重新載入）——需要額外
-  `kubectl rollout restart deployment/api -n collaboration-notes`。
+  一次會把 `.env` 裡的 key 分別套用成上面四個 Secret（某個 Secret 對應的 key
+  都不存在時會跳過該 Secret，不會報錯中斷）。執行後 Secret 內容更新，但
+  **不會**自動讓對應的 pod 重新啟動去讀新的環境變數（k8s 的 Secret 更新不會
+  觸發已存在 pod 的 env 重新載入）——需要額外手動重啟，例如：
+  ```bash
+  kubectl rollout restart deployment/api -n collaboration-notes
+  kubectl rollout restart deployment/postgres -n collaboration-notes
+  kubectl rollout restart deployment/keycloak -n collaboration-notes
+  kubectl rollout restart deployment/cloudflared -n collaboration-notes
+  ```
+
+## Cloudflare Tunnel
+
+`cloudflared` 跑在叢集裡（`infra/k8s/cloudflared/deployment.yaml`），用 token
+模式運作：tunnel 本身、以及 `api.davish.net`/`auth.davish.net` 這兩條 public
+hostname 規則，都在 Cloudflare Zero Trust 後台設定，不是本地 config 檔案——
+這個 Deployment 只需要一個 `TUNNEL_TOKEN` 就能運作。
+
+**建立步驟**（在 Cloudflare Zero Trust 後台操作，這一步在 repo 之外）：
+1. `Networks → Tunnels → Create a tunnel`，connector 類型選 `Cloudflared`，取個名字（例如 `conotes`）。
+2. 建立後會看到一段帶 token 的安裝指令，只需要複製 `--token` 後面那串值。
+3. 在 `Public Hostname` 分頁新增兩條規則：
+   - `api.davish.net` → HTTP → `ingress-nginx-controller.ingress-nginx.svc.cluster.local:80`
+   - `auth.davish.net` → HTTP → `ingress-nginx-controller.ingress-nginx.svc.cluster.local:80`
+4. 把拿到的 token 填進 `.env` 檔案的 `TUNNEL_TOKEN=`，跑一次 `infra/scripts/apply-secrets.sh`（見上方「密鑰管理」）。
+
+DNS 記錄（`api.davish.net`/`auth.davish.net` 的 CNAME 指到 tunnel）由 Cloudflare
+在你新增 Public Hostname 規則時自動建立，前提是 `davish.net` 這個 zone 本身已經
+在用 Cloudflare 的 nameserver。
 
 ## 已知限制
 
 - **單副本 Keycloak**：沒有用官方 Operator，也沒有多副本；它是單點故障，掛掉之後沒人能登入（既有的 access token 在過期前仍可正常呼叫 API）。
 - **Keycloak 用 `start-dev`**：為求簡化，不是生產模式（`start`）。可接受，因為這個 change 明確排除生產級硬化／HA。
 - **共用同一個 Postgres instance**：`app`、`keycloak` 是同一個 instance 上的兩個獨立 database，不是獨立 instance；這個 instance 掛掉會同時拖垮登入跟 App 資料。用獨立 database（不是 schema）保留了之後切到獨立 instance 的路徑。
-- **所有 Secret 都是明碼佔位密碼**：這是玩具/學習專案，`stringData` 直接寫死方便重建環境；正式使用前必須替換。
+- **DB／Keycloak admin 密碼佔位**：這是玩具/學習專案，`.env` 目前仍填的是佔位密碼；正式使用前必須替換成真的密碼，流程一樣是改 `.env` 後重跑 `infra/scripts/apply-secrets.sh`（見上方「密鑰管理」）。
 - **沒有設定任何 pod resource requests/limits**：design.md 的 Open Question，留到實際觀察用量後再調整。
 - **`Redis` 的 k8s manifest 尚未撰寫**：`proposal.md` 提到要跟其他資料層一起建起來（給 SignalR backplane 用），但 `tasks.md` 當時沒有對應的 task item，一直沒有 Redis 的 k8s manifest。`collab-editing` change 實作 SignalR Hub 時才發現這個落差，先在本機 `docker-compose` 補上 Redis 容器（見下方「本機開發」），k8s manifest 仍待補。
 

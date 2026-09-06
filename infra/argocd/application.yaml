@@ -22,6 +22,40 @@ spec:
     server: https://kubernetes.default.svc
     namespace: collaboration-notes
 
+  # 這三個 Secret 的實際密鑰內容由伺服器端 `infra/scripts/apply-secrets.sh` 寫入,
+  # 不進 git(git 裡的 stringData 只是空殼、宣告存在與 key 名稱, 見各自檔案開頭的
+  # 註解)——忽略 data/stringData 差異, ArgoCD 才不會把伺服器端寫入的真實內容
+  # 用 selfHeal 蓋回空殼, 也不會因為內容跟 git 不同就當成需要修的 drift。
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: conotes-secrets
+      namespace: collaboration-notes
+      jsonPointers:
+        - /data
+        - /stringData
+    - group: ""
+      kind: Secret
+      name: postgres-credentials
+      namespace: collaboration-notes
+      jsonPointers:
+        - /data
+        - /stringData
+    - group: ""
+      kind: Secret
+      name: keycloak-credentials
+      namespace: collaboration-notes
+      jsonPointers:
+        - /data
+        - /stringData
+    - group: ""
+      kind: Secret
+      name: cloudflared-credentials
+      namespace: collaboration-notes
+      jsonPointers:
+        - /data
+        - /stringData
+
   syncPolicy:
     automated:
       prune: true

@@ -56,7 +56,7 @@ sequenceDiagram
 **4. Image registry 選 ghcr.io。**
 跟 repo 在同一個平台，GitHub Actions 用內建的 `GITHUB_TOKEN` 就能推送，不用額外申請帳號或存 registry 密碼。
 
-**5. 密鑰完全不進 CI/CD、不進 git：維護一份伺服器端的 `.env` 檔案，用 `scripts/apply-secrets.sh` 手動套用成 k8s Secret。**
+**5. 密鑰完全不進 CI/CD、不進 git：維護一份伺服器端的 `.env` 檔案，用 `infra/scripts/apply-secrets.sh` 手動套用成 k8s Secret。**
 這是你的決定。比起 Sealed Secrets，不用多裝一個 controller，維運元件數更少；代價是密鑰的來源只存在於伺服器端這一份檔案，環境沒辦法單靠 git 100% 重建——這個取捨在下面 Risks 說明。
 
 **6. 部署 manifest 的更新用 CI 直接 commit 回 main，不用 ArgoCD Image Updater。**

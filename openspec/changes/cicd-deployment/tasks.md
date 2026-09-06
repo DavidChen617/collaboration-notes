@@ -1,6 +1,6 @@
 ## 1. 密鑰管理腳本
 
-- [x] 1.1 撰寫 `scripts/apply-secrets.sh`：讀取伺服器端指定路徑的 `.env` 檔案，用 `kubectl create secret generic ... --from-env-file --dry-run=client -o yaml | kubectl apply -f -` 的方式 upsert 一個 k8s Secret
+- [x] 1.1 撰寫 `infra/scripts/apply-secrets.sh`：讀取伺服器端指定路徑的 `.env` 檔案，用 `kubectl create secret generic ... --from-env-file --dry-run=client -o yaml | kubectl apply -f -` 的方式 upsert 一個 k8s Secret
 - [x] 1.2 在 repo 說明文件（例如 README 或 `infra/` 底下的說明檔）記錄：`.env` 檔案該放在伺服器的哪個路徑、包含哪些變數（PayPal sandbox key、AI provider key、Keycloak client secret 等）、什麼時候需要重新執行這支腳本
 - [x] 1.3 在乾淨的測試環境手動跑一次腳本，驗證產生的 k8s Secret 內容跟 `.env` 一致——已對真的 3-node 叢集驗證：套用真的 PayPal 憑證後，用 SHA-256 雜湊比對 Secret 內容與來源 `.env` 逐 key 完全一致
 
