@@ -38,7 +38,7 @@ spec:
                   name: postgres-credentials
                   key: keycloak-password
             - name: KC_HOSTNAME
-              value: https://auth.example.com
+              value: https://auth.davish.net
             - name: KC_HTTP_ENABLED
               value: "true"
             - name: KEYCLOAK_ADMIN

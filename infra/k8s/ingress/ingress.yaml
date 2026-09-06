@@ -1,6 +1,6 @@
 # Routes browser-facing traffic (via nginx, the cluster's single ingress point —
 # see design.md Decision 9) to the API and Keycloak by hostname. Cloudflare Tunnel
-# points only at nginx's Service; see infra/cloudflared/config.yml.
+# points only at nginx's Service; see infra/k8s/cloudflared/deployment.yaml.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -9,7 +9,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: api.example.com
+    - host: api.davish.net
       http:
         paths:
           - path: /
@@ -19,7 +19,7 @@ spec:
                 name: api
                 port:
                   number: 8080
-    - host: auth.example.com
+    - host: auth.davish.net
       http:
         paths:
           - path: /

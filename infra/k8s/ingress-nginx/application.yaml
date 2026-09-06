@@ -14,6 +14,16 @@ spec:
     repoURL: https://kubernetes.github.io/ingress-nginx
     chart: ingress-nginx
     targetRevision: 4.15.1
+    helm:
+      # 這個 chart 的 admission webhook 憑證是靠 Helm pre-install hook 產生 CA、
+      # patch caBundle——ArgoCD 對 Helm hook 的處理方式不同，這個 hook 沒有真的
+      # 跑起來，導致 caBundle 是空的、任何 Ingress 的 CREATE/UPDATE 都會被
+      # webhook 擋下(x509: certificate signed by unknown authority)。ArgoCD +
+      # 這個 chart 的已知相容性問題，標準解法是直接關掉 admission webhook。
+      valuesObject:
+        controller:
+          admissionWebhooks:
+            enabled: false
 
   destination:
     server: https://kubernetes.default.svc

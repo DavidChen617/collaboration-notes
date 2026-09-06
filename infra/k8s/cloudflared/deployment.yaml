@@ -1,0 +1,40 @@
+# Cloudflare Tunnel 執行在叢集內，設定改成 token 模式：tunnel 本身跟它的
+# public hostname 路由規則(api.davish.net/auth.davish.net -> nginx)都在
+# Cloudflare Zero Trust 後台設定，不是本地 config.yml——這個 Deployment 只需要
+# 一個 token 就能運作。見 infra/README.md「Cloudflare Tunnel」章節的建立步驟。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: collaboration-notes
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.3
+          args:
+            - tunnel
+            - --no-autoupdate
+            # 這個網路環境會擋掉 UDP 7844(QUIC 用的 port)，導致預設的 QUIC 連線一直
+            # timeout、tunnel 連不上 Cloudflare edge(症狀：cloudflared log 一直印
+            # "failed to dial to edge with quic: timeout: no recent network
+            # activity")。強制用 http2(TCP-based)繞過這個限制。
+            - --protocol
+            - http2
+            - run
+            - --token
+            - $(TUNNEL_TOKEN)
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-credentials
+                  key: TUNNEL_TOKEN

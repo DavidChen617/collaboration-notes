@@ -33,11 +33,11 @@ data:
           "directAccessGrantsEnabled": false,
           "serviceAccountsEnabled": false,
           "redirectUris": [
-            "https://app.example.com/*",
+            "https://www.davish.net/conote/*",
             "http://localhost:4200/*"
           ],
           "webOrigins": [
-            "https://app.example.com",
+            "https://www.davish.net",
             "http://localhost:4200"
           ],
           "attributes": {

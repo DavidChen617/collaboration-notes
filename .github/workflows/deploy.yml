@@ -123,14 +123,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # 前端用自訂網域(www.davish.net)服務、要放在 /conote 這個子路徑下——
+      # GitHub Pages 完全照 artifact 裡的目錄結構原樣提供服務，所以這裡自己把
+      # 建置輸出包一層 conote/ 目錄，Angular 的 base-href 對應設成 /conote/。
       - name: Build
-        run: pnpm build --base-href /${{ github.event.repository.name }}/
+        run: pnpm build --base-href /conote/
+
+      - name: Nest build output under /conote
+        run: |
+          mkdir -p dist/pages-root/conote
+          cp -r dist/CoNotes.Client/browser/. dist/pages-root/conote/
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: src/CoNotes.Client/dist/CoNotes.Client/browser
+          path: src/CoNotes.Client/dist/pages-root
 
       - id: deployment
         uses: actions/deploy-pages@v4
