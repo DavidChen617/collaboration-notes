@@ -7,7 +7,7 @@
 ### Requirement: 使用者透過 PayPal 付款取得對應等級的 license code
 使用者透過 PayPal 完成一筆一次性付款時，系統 SHALL 產生一組對應該付款等級、尚未使用過的 license code。
 
-**Path**: Command（`IssueLicenseCodeCommand`，由使用者從 PayPal 核准頁導回後、後端呼叫 PayPal Capture API 確認付款狀態為 `COMPLETED` 觸發，發出 `LicenseCodeIssued`；不使用 webhook——見 design.md 決定 2b）
+**Path**: Command（`IssueLicenseCodeCommand`，由 PayPal 的 `PAYMENT.CAPTURE.COMPLETED` webhook 驗證簽章通過後觸發，發出 `LicenseCodeIssued`；使用者導回確認頁時觸發的是 Capture API 呼叫本身(真正扣款的動作)，不是這個 Command——見 design.md 決定 2）
 
 #### Scenario: 付款完成後產生 license code
 - **WHEN** 使用者透過 PayPal 完成一筆 Pro 或 ProMax 等級的一次性付款

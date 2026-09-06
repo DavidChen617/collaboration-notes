@@ -72,7 +72,8 @@ public sealed class BillingEndpointTests(FunctionalTestWebAppFactory factory)
     /// 端對端測試——用真的 PayPal Sandbox REST API 建立訂單, 走到「使用者核准」這一步之前的
     /// 完整流程都真的驗證過(需要環境變數 `PayPal__ClientId`/`PayPal__ClientSecret`)；核准本身
     /// 需要 PayPal sandbox buyer 帳號(見 tasks.md 6.0/6.3), 這裡驗證還沒核准就 confirm 會被
-    /// 正確拒絕、不會產生 code。之後兌換→分享連結/聊天室這段已經在 <see cref="GivenValidUnusedCode_WhenRedeemEndpointCalled_ThenPlanTierUpdatedInResponse"/>
+    /// 正確拒絕、輪詢 license-code 的 endpoint 也正確回 404(還沒有 code)。之後兌換→分享連結/
+    /// 聊天室這段已經在 <see cref="GivenValidUnusedCode_WhenRedeemEndpointCalled_ThenPlanTierUpdatedInResponse"/>
     /// 與 <c>NoteCollabEndpointTests</c>/<c>ChatMessageTests</c> 涵蓋過。
     /// </summary>
     [Fact]
@@ -96,8 +97,45 @@ public sealed class BillingEndpointTests(FunctionalTestWebAppFactory factory)
         Assert.StartsWith("https://www.sandbox.paypal.com/", createBody.ApprovalUrl);
 
         var confirmResponse = await user.PostAsync($"{BillingEndpoint}/orders/{createBody.OrderId}/confirm", content: null);
-
         Assert.Equal(HttpStatusCode.BadRequest, confirmResponse.StatusCode);
+
+        var licenseCodeResponse = await user.GetAsync($"{BillingEndpoint}/orders/{createBody.OrderId}/license-code");
+        Assert.Equal(HttpStatusCode.NotFound, licenseCodeResponse.StatusCode);
+    }
+
+    /// <summary>
+    /// 用真的 PayPal Sandbox REST API 驗證 webhook 簽章——這裡故意送假的 transmission 資訊,
+    /// 驗證失敗時 endpoint 仍然回 200(PayPal 的慣例：避免對方一直重送)、且不會產生任何 code,
+    /// 不是丟例外或回錯誤狀態碼。真的向 PayPal 註冊過 webhook 並用它的 webhook 模擬器送過一次
+    /// 真正簽過章的事件, 實測簽章驗證會通過、事件類型判斷正確、但因為模擬器帶的是固定假資料
+    /// (`custom_id` 不是有效的 PlanTier), 正確地沒有產生 code——見 tasks.md 3.4/4.x 的說明。
+    /// </summary>
+    [Fact]
+    public async Task GivenForgedWebhookRequest_WhenPostedAnonymously_ThenReturns200AndDoesNothing()
+    {
+        var client = factory.CreateClient();
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{BillingEndpoint}/webhook")
+        {
+            Content = JsonContent.Create(new
+            {
+                event_type = "PAYMENT.CAPTURE.COMPLETED",
+                resource = new { custom_id = "Pro", supplementary_data = new { related_ids = new { order_id = "FAKE-ORDER" } } },
+            }),
+        };
+        request.Headers.Add("PAYPAL-AUTH-ALGO", "SHA256withRSA");
+        request.Headers.Add("PAYPAL-CERT-URL", "https://api.sandbox.paypal.com/v1/notifications/certs/not-a-real-cert");
+        request.Headers.Add("PAYPAL-TRANSMISSION-ID", Guid.NewGuid().ToString());
+        request.Headers.Add("PAYPAL-TRANSMISSION-SIG", "forged-signature");
+        request.Headers.Add("PAYPAL-TRANSMISSION-TIME", DateTime.UtcNow.ToString("O"));
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var authenticatedUser = await CreateProvisionedClientAsync();
+        var licenseCodeResponse = await authenticatedUser.GetAsync($"{BillingEndpoint}/orders/FAKE-ORDER/license-code");
+        Assert.Equal(HttpStatusCode.NotFound, licenseCodeResponse.StatusCode);
     }
 
     private async Task<HttpClient> CreateProvisionedClientAsync(bool isAdmin = false)

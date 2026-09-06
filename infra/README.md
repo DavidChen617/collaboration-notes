@@ -49,6 +49,37 @@ docker compose up -d
 
   Keycloak 的 host port 故意配成 `8081`（不是 Keycloak 預設的 `8080`），因為 `8080` 被下面的本機 SigNoz UI 佔用了。
 
+## 本機測試 PayPal webhook（ngrok）
+
+`subscription-billing` change 的 license code 產生是由 PayPal 的 `PAYMENT.CAPTURE.COMPLETED` webhook 觸發（見 `openspec/changes/subscription-billing/design.md` 決定 2），webhook 需要 PayPal 的伺服器能打到一個公開可達的網址——本機開發用 [ngrok](https://ngrok.com/) 開一個對外隧道：
+
+```bash
+ngrok http 5094
+```
+
+拿到的公開網址（例如 `https://xxxx.ngrok-free.app`）需要向 PayPal 註冊成 webhook，訂閱 `PAYMENT.CAPTURE.COMPLETED` 事件：
+
+```bash
+curl -X POST https://api-m.sandbox.paypal.com/v1/notifications/webhooks \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://xxxx.ngrok-free.app/api/v1/billing/webhook",
+    "event_types": [{"name": "PAYMENT.CAPTURE.COMPLETED"}]
+  }'
+```
+
+回應裡的 `id` 就是 `PayPal:WebhookId`，簽章驗證(`IPayPalClient.TryVerifyCaptureCompletedEventAsync`)需要用到；連同 `PayPal:ClientId`／`PayPal:ClientSecret` 一起用環境變數帶給 `dotnet run`：
+
+```bash
+PayPal__ClientId="..." \
+PayPal__ClientSecret="..." \
+PayPal__WebhookId="..." \
+dotnet run --project src/CoNotes.Api
+```
+
+**已知限制**：ngrok 免費版每次重啟都會拿到一個新的臨時網址，重啟後要重新呼叫 PayPal 的 webhook 更新 API（`PATCH /v1/notifications/webhooks/{id}`）把 `url` 換成新的，否則 PayPal 會繼續送到舊網址、本機收不到。也可以用 PayPal 的 webhook 模擬器（`POST /v1/notifications/simulate-event`）送一個真正簽過章的測試事件到目前的網址，不需要真的走一次付款流程就能驗證簽章驗證/送達是否正常——這個模擬器帶的是固定的假資料（`custom_id` 不是有效的 `PlanTier`），所以只能驗證「送達＋簽章驗證」，驗證不到「真的產生 code」這一段。
+
 ## 本機觀測性（SigNoz）
 
 `infra/k8s/signoz/application.yaml` 部署的是官方 Helm chart（見上方部署順序第 4 步），本機開發沒有 k8s，所以不能直接套用同一份 manifest。SigNoz 官方現在也不再提供一份可以直接複製的 `docker-compose.yaml`——改用他們自己的 CLI `foundryctl` 動態產生整組 compose 檔（ClickHouse + otel-collector + query-service 等內部拓樸複雜，連官方都建議別手刻），這跟我們在 k8s 用官方 Helm chart、不手刻 raw manifest 是同一個理由。

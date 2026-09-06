@@ -12,7 +12,6 @@
 
 **Non-Goals:**
 - 用 PayPal 的訂閱/定期扣款機制（Subscriptions API）——這裡刻意只用一次性付款（Orders API），PayPal 只當收款工具，不追蹤任何「訂閱」生命週期；也因此完全不用處理續訂、扣款失敗這類事件，只在「這筆付款完成」的當下觸發一次（見 Decisions 2）。
-- 用 PayPal webhook 接收付款事件——這台開發機沒有對外可達的網址，PayPal 的伺服器無法把 webhook 送到這裡；改成前端在使用者從 PayPal 核准頁導回後，直接呼叫我們自己的 API 觸發後端呼叫 PayPal 的 Capture API 確認付款狀態（見 Decisions 2）。
 - 對已經加入協作/聊天室的共編者做等級檢查——這個 change 只檢查筆記擁有者的等級。
 - 使用者自己降級（自助退款、自助退回 Free）——目前只有系統管理者能手動撤銷。
 
@@ -26,7 +25,7 @@
 
 ## Domain Events
 
-- **`LicenseCodeIssued`**（`LicenseCodeId`、`PlanTier`、`PayPalOrderId`）：確認 PayPal 一次性付款完成(見下方「PayPal 付款確認方式」)、系統產生一組新 code 時，由 `LicenseCode` Aggregate 發出。
+- **`LicenseCodeIssued`**（`LicenseCodeId`、`PlanTier`、`PayPalOrderId`）：PayPal 的 `PAYMENT.CAPTURE.COMPLETED` webhook 驗證簽章通過、系統產生一組新 code 時，由 `LicenseCode` Aggregate 發出。
 - **`LicenseCodeRedeemed`**（`LicenseCodeId`、`AppUserId`、`PlanTier`，**跨 Context**）：使用者成功兌換一組有效 code 時，由 `LicenseCode` Aggregate（Billing context）發出。**Identity context 訂閱這個事件**，事件處理者把對應 `AppUser` 的 `PlanTier` 更新成事件帶的等級——這是「一次性解鎖、與 PayPal 後續狀態脫鉤」這個決策能夠乾淨落地的關鍵：兌換的當下是唯一會觸發 `AppUser.PlanTier` 變動的時機點，之後不管這筆 PayPal 付款有沒有被退款或申訴爭議，都不會再有任何事件被發出，`AppUser.PlanTier` 自然也就不會被自動改動。
 - **`AppUserPlanTierRevoked`**（`AppUserId`）：系統管理者手動撤銷等級時，由 `AppUser` Aggregate（Identity context）直接發出——這個操作本來就發生在 Identity context 內部，不需要跨 Context 事件。
 
@@ -45,11 +44,18 @@ sequenceDiagram
     participant NotesCmd as 既有 Command Handler (Notes，如 GenerateShareLinkCommand)
 
     User->>Api: 從 PayPal 核准頁導回(帶著 PayPal Order Id)
-    Api->>PayPal: 呼叫 Capture API
-    PayPal-->>Api: 回傳狀態 COMPLETED
+    Api->>PayPal: 呼叫 Capture API(觸發真的扣款)
+    PayPal-->>Api: 202 Accepted(不代表 code 已產生)
+    Api-->>User: 導向確認頁, 開始輪詢 code
+
+    PayPal->>Api: webhook: PAYMENT.CAPTURE.COMPLETED(非同步送達)
+    Api->>PayPal: 呼叫 verify-webhook-signature API
+    PayPal-->>Api: 簽章驗證通過
     Api->>IssueCmd: IssueLicenseCodeCommand(PlanTier, PayPalOrderId)
-    IssueCmd->>Code: 建立新的 LicenseCode
+    IssueCmd->>Code: 建立新的 LicenseCode(先查有沒有這個 OrderId 的 code, 避免 webhook 重送造成重複發)
     Code-->>IssueCmd: 發出 LicenseCodeIssued
+    User->>Api: 輪詢 GET /orders/{orderId}/license-code
+    Api-->>User: 200 + code(webhook 處理完成後)
 
     User->>Api: 輸入 license code 兌換
     Api->>RedeemCmd: RedeemLicenseCodeCommand(Code, AppUserId)
@@ -75,8 +81,8 @@ sequenceDiagram
 **1. `PlanTier` 直接存在 `AppUser` 上（`Free`/`Pro`/`ProMax`），單一真實來源，每次使用受限功能時即時查詢。**
 延續 `setup-infra-and-auth` design.md 就定案的原則：訂閱狀態不進 Keycloak、不快取，即時查詢才能讓等級變動幾乎立刻生效。
 
-**2. PayPal 只用一次性付款（Orders API），不用它的 Subscriptions API；付款完成的確認方式是「使用者從 PayPal 核准頁導回後，後端直接呼叫 PayPal 的 Capture API、檢查回傳狀態是否為 `COMPLETED`」，不是 webhook。License code 兌換生效後不隨這筆付款之後的退款/爭議狀態自動變動。**
-兩層決定都是跟你確認過的：(a) 原本規劃走 PayPal 訂閱定期扣款，後來改成單次付款，模型更單純——不需要追蹤任何「訂閱」生命週期，也不需要一張獨立的 `Subscription` table 去記錄扣款狀態，PayPal 的訂單 id 只要附記在觸發它產生的那筆 `LicenseCode` 上，當作稽核用途即可。(b) 原本規劃用 PayPal webhook 接收「付款完成」事件，後來發現這台開發機沒有對外可達的網址、PayPal 伺服器無法真的把 webhook 送到這裡，改成前端在核准後導回我們自己的網站、後端直接呼叫 Capture API 確認——這是 PayPal 標準的 Checkout 流程本來就支援的同步確認方式，不需要額外的公開網址，而且能在本機完整測試。Webhook 原本的價值是「使用者核准後、瀏覽器沒有導回」這種邊角案例的保險，這裡判斷這個風險對玩具/學習專案不重要，先不做。
+**2. PayPal 只用一次性付款（Orders API），不用它的 Subscriptions API；License code 是由 PayPal 的 `PAYMENT.CAPTURE.COMPLETED` webhook 觸發產生，不是由「導回確認頁」這個動作本身直接觸發。**
+這裡的付款確認機制經過兩次調整：一開始規劃 webhook，後來發現這台開發機沒有對外可達的網址、PayPal 伺服器無法把 webhook 送到這裡，改成「使用者導回後由後端直接呼叫 Capture API 確認」；後來架了 ngrok 隧道拿到公開網址，改回 webhook 驅動——這是跟你確認過的決定。實際設計是兩者都保留、各司其職：**使用者導回時**，`ConfirmOrder` endpoint 還是要呼叫 PayPal 的 Capture API——這一步是真正觸發扣款本身的動作，不管有沒有 webhook 都需要有人呼叫；但這個 endpoint 現在**只負責觸發 capture**，不直接發 code。**扣款真的完成後**，PayPal 才會呼叫我們的 webhook，經過簽章驗證(呼叫 PayPal 的 `verify-webhook-signature` API)後才觸發 `IssueLicenseCodeCommand`。前端在導回確認頁時，用一個新的 `GET /orders/{orderId}/license-code` endpoint 輪詢(webhook 送達是非同步的，導回當下不保證 code 已經存在)。`IssueLicenseCodeCommandHandler` 因此需要是 idempotent 的——webhook 可能因為逾時被 PayPal 重送，同一筆 `PayPalOrderId` 重複收到就直接回傳已存在的 code、不重複發一組新的。真的向 PayPal 註冊過 webhook、也用它的 webhook 模擬器送過一次真正簽過章的事件到本機(透過 ngrok)，實測簽章驗證會通過。License code 兌換生效後不隨這筆付款之後的退款/爭議狀態自動變動——系統完全不監聽這類事件。
 
 **3. 系統管理者身份用 Keycloak realm role 判斷（`admin`），不是應用程式自己的欄位。**
 這個專案目前完全沒有角色/權限概念，`RequireAuthorization()` 都只檢查「有沒有登入」。撤銷等級這個操作需要區分「誰是管理者」，選擇沿用 Keycloak 既有的 realm role 機制（讀取 JWT 的 `realm_access.roles`），而不是在 `AppUser` 或別的地方另外存一份「是不是管理者」的旗標——避免多一個需要手動同步的真實來源。本機測試時透過 Keycloak Admin Console（或 Admin REST API）手動把 `admin` role 指派給測試帳號。
@@ -98,4 +104,5 @@ Code 的性質類似禮品卡：誰有這組碼、誰就能兌換。付款的人
 - **[Risk]** 使用者兌換 code 拿到 Pro/ProMax 之後，就算這筆 PayPal 付款之後被退款或申訴爭議，等級也不會自動收回——變成「付一次錢、永久解鎖」的實質效果。→ **Mitigation**：這是你已經確認接受的取捨；管理者手動撤銷是唯一的收回手段；玩具/學習專案定位下可以接受，正式商業化前需要重新設計。
 - **[Risk]** License code 兌換不限制身份，一組 code 外流就可能被非付款人搶先兌換。→ **Mitigation**：code 是一次性的，最多被搶兌換一次；這跟禮品卡的性質一致，是可接受的取捨。
 - **[Risk]** 完全不知道這筆付款後續是否被退款或申訴爭議(沒有監聽任何 PayPal 事件)。→ **Mitigation**：這是刻意接受的範圍縮減；之後如果需要，可以再加 webhook 監聽其他事件類型，不影響現在的 `LicenseCode` 資料模型。
-- **[Risk]** 不用 webhook、改成前端導回後呼叫 Capture 的確認方式，代表如果使用者在 PayPal 核准之後、瀏覽器還沒導回我們網站前就關掉分頁或斷線，這筆付款會停在「已核准但未 capture」的狀態，使用者不會拿到 code。→ **Mitigation**：這是刻意接受的取捨(見 Decisions 2b)——沒有公開網址可以收 webhook，且這個邊角案例對玩具/學習專案影響有限；使用者可以重新走一次付款流程，或未來有公開網址時再補上 webhook 當保險。
+- **[Risk]** 如果使用者在 PayPal 核准之後、瀏覽器還沒導回我們網站前就關掉分頁或斷線，`ConfirmOrder` 就不會被呼叫、扣款不會真的被 capture，這筆訂單會停在「已核准但未 capture」的狀態，webhook 也就不會送達、使用者不會拿到 code。→ **Mitigation**：這是刻意接受的取捨——使用者可以重新走一次購買流程；真正的正式產品應該再加一個背景排程去主動查詢/re-capture 逾時未完成的訂單，這裡先不做。
+- **[Risk]** ngrok 的免費版網址是每次重啟就會變動的臨時網址，重啟 ngrok 之後要重新去 PayPal 更新已註冊 webhook 的 `url`，否則新的 webhook 事件會送到舊網址、收不到。→ **Mitigation**：本機開發環境本來就預期會重啟；正式環境會有固定的網域，這個問題只存在於本機開發階段。

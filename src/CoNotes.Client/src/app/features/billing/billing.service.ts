@@ -18,8 +18,14 @@ export class BillingService {
     });
   }
 
-  confirmOrder(orderId: string): Observable<{ code: string }> {
-    return this.http.post<{ code: string }>(`${this.baseUrl}/orders/${orderId}/confirm`, null);
+  /** 觸發 PayPal capture 本身;真的產生 code 是由 PayPal 送來的 webhook 觸發, 見 getLicenseCodeForOrder。 */
+  confirmOrder(orderId: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/orders/${orderId}/confirm`, null);
+  }
+
+  /** webhook 送達是非同步的, 呼叫這個 endpoint 輪詢 code 是否已經產生;還沒產生時 404。 */
+  getLicenseCodeForOrder(orderId: string): Observable<{ code: string }> {
+    return this.http.get<{ code: string }>(`${this.baseUrl}/orders/${orderId}/license-code`);
   }
 
   redeemLicenseCode(code: string): Observable<RedeemLicenseCodeResult> {

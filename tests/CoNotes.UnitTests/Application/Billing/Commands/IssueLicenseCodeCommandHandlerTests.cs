@@ -29,4 +29,24 @@ public class IssueLicenseCodeCommandHandlerTests
             Arg.Any<CancellationToken>()
         );
     }
+
+    [Fact]
+    public async Task GivenOrderAlreadyHasALicenseCode_WhenHandledAgain_ThenReturnsExistingCodeWithoutIssuingANewOne()
+    {
+        var existingCode = LicenseCode.Issue("EXISTING123", PlanTier.Pro, "PAYPAL-ORDER-1", DateTime.UtcNow);
+        var licenseCodeRepository = Substitute.For<ILicenseCodeRepository>();
+        licenseCodeRepository
+            .GetByPayPalOrderIdAsync("PAYPAL-ORDER-1", Arg.Any<CancellationToken>())
+            .Returns(existingCode);
+        var handler = new IssueLicenseCodeCommandHandler(licenseCodeRepository, TimeProvider.System);
+
+        var result = await handler.HandleAsync(
+            new IssueLicenseCodeCommand(PlanTier.Pro, "PAYPAL-ORDER-1"),
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("EXISTING123", result.Value.Code);
+        await licenseCodeRepository.DidNotReceive().AddAsync(Arg.Any<LicenseCode>(), Arg.Any<CancellationToken>());
+    }
 }

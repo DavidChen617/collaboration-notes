@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 
@@ -79,6 +80,67 @@ internal sealed class PayPalClient(HttpClient httpClient, IConfiguration configu
 
         return new PayPalCaptureResult(IsCompleted: true, planTier);
     }
+
+    public async Task<PayPalWebhookEvent?> TryVerifyCaptureCompletedEventAsync(
+        PayPalWebhookHeaders headers,
+        string rawBody,
+        CancellationToken ct
+    )
+    {
+        var webhookId = configuration["PayPal:WebhookId"];
+        if (string.IsNullOrWhiteSpace(webhookId))
+            throw new InvalidOperationException(
+                "PayPal:WebhookId 沒有設定, 無法驗證 webhook 簽章。這是設定缺失, 跟「簽章驗證失敗」是不同情況, 刻意不當成 null 靜默吞掉。"
+            );
+
+        using var webhookEventDocument = JsonDocument.Parse(rawBody);
+        var accessToken = await GetAccessTokenAsync(ct);
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{GetBaseUrl()}/v1/notifications/verify-webhook-signature"
+        );
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Content = JsonContent.Create(new
+        {
+            auth_algo = headers.AuthAlgo,
+            cert_url = headers.CertUrl,
+            transmission_id = headers.TransmissionId,
+            transmission_sig = headers.TransmissionSig,
+            transmission_time = headers.TransmissionTime,
+            webhook_id = webhookId,
+            webhook_event = webhookEventDocument.RootElement,
+        });
+
+        using var response = await httpClient.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var verification = await response.Content.ReadFromJsonAsync<VerifySignatureResponse>(cancellationToken: ct);
+        if (verification?.VerificationStatus != "SUCCESS")
+            return null;
+
+        var root = webhookEventDocument.RootElement;
+        if (root.GetProperty("event_type").GetString() != "PAYMENT.CAPTURE.COMPLETED")
+            return null;
+
+        var resource = root.GetProperty("resource");
+        var customId = resource.TryGetProperty("custom_id", out var customIdElement) ? customIdElement.GetString() : null;
+        var orderId = resource
+            .GetProperty("supplementary_data")
+            .GetProperty("related_ids")
+            .GetProperty("order_id")
+            .GetString();
+
+        if (customId is null || orderId is null || !Enum.TryParse<PlanTier>(customId, out var planTier))
+            return null;
+
+        return new PayPalWebhookEvent(orderId, planTier);
+    }
+
+    private sealed record VerifySignatureResponse(
+        [property: JsonPropertyName("verification_status")] string? VerificationStatus
+    );
 
     private async Task<string> GetAccessTokenAsync(CancellationToken ct)
     {
