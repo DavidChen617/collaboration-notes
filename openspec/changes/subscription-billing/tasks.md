@@ -48,10 +48,12 @@
 
 ## 5. 前端
 
-- [ ] 5.1 新增訂閱方案選擇畫面，呼叫建立訂單 endpoint 後導向 PayPal 核准網址
-- [ ] 5.2 新增使用者從 PayPal 核准頁導回後的確認畫面，呼叫確認付款完成 endpoint，顯示產生的 license code
-- [ ] 5.3 新增輸入 license code 兌換的畫面，驗證兌換成功/失敗（已使用過）兩種情況都有清楚的提示
-- [ ] 5.4 在分享連結、聊天室相關 UI，針對等級不足的情況顯示清楚的提示（而非讓功能默默失效）
+> 新增 `features/billing/`：`BillingPlansComponent`（`/billing/plans`）、`BillingConfirmComponent`（`/billing/confirm`，讀取 PayPal 導回時帶的 `?token=` query param 當 order id）、`RedeemCodeComponent`（`/billing/redeem`）。`note-editor.component.ts` 的分享連結、`note-chat.component.ts` 的聊天室送出，都補上失敗時的錯誤訊息顯示(原本這兩個動作完全沒有處理 subscribe 的 error callback，會直接靜默失敗)。順便讓 `note-list` 加一個「訂閱方案」的連結，否則畫面上完全沒有入口。
+
+- [x] 5.1 新增訂閱方案選擇畫面，呼叫建立訂單 endpoint 後導向 PayPal 核准網址（Playwright 實測：真的建立臨時 Keycloak 使用者、登入、點擊「購買 Pro」，確認瀏覽器真的被導向 `sandbox.paypal.com` 的核准頁面）
+- [x] 5.2 新增使用者從 PayPal 核准頁導回後的確認畫面，呼叫確認付款完成 endpoint，顯示產生的 license code
+- [x] 5.3 新增輸入 license code 兌換的畫面，驗證兌換成功/失敗（已使用過）兩種情況都有清楚的提示（Playwright 實測：用測試專用 endpoint 取得一組 code(因為核准這步需要 buyer 帳號，見 6.0)、在 `/billing/redeem` 輸入兌換，畫面正確顯示「兌換成功！你的訂閱等級已更新為 Pro。」)
+- [x] 5.4 在分享連結、聊天室相關 UI，針對等級不足的情況顯示清楚的提示（而非讓功能默默失效）（Playwright 實測兩種情境：Free tier 使用者點「產生分享連結」，畫面顯示「訂閱等級不足」提示；兌換 Pro 之後同一顆按鈕改為成功；Pro(非 ProMax) tier 使用者在聊天室送訊息，畫面顯示「筆記擁有者的訂閱等級須為 ProMax」提示）
 
 ## 6. 端對端驗證
 

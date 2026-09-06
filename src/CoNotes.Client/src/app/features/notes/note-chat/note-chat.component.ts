@@ -31,6 +31,9 @@ import { ChatMessage } from '../note.model';
         />
         <button type="submit">送出</button>
       </form>
+      @if (errorMessage()) {
+        <p role="alert">{{ errorMessage() }}</p>
+      }
     </section>
   `,
   styles: [
@@ -80,6 +83,7 @@ export class NoteChatComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) noteId!: string;
 
   protected readonly messages = signal<ChatMessage[]>([]);
+  protected readonly errorMessage = signal('');
   protected draft = '';
 
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
@@ -108,7 +112,12 @@ export class NoteChatComponent implements OnChanges, OnDestroy {
     if (!content || !this.session) return;
 
     this.draft = '';
-    await this.session.send(content);
+    this.errorMessage.set('');
+    try {
+      await this.session.send(content);
+    } catch {
+      this.errorMessage.set('傳送失敗：筆記擁有者的訂閱等級須為 ProMax 才能使用聊天室。');
+    }
   }
 
   private scrollToBottom(): void {

@@ -12,6 +12,7 @@ import { NoteSummary } from '../note.model';
 
     <a routerLink="/notes/new">建立新筆記</a>
     <a routerLink="/notes/graph">檢視關係圖</a>
+    <a routerLink="/billing/plans">訂閱方案</a>
 
     @if (notes().length === 0) {
       <p>還沒有任何筆記。</p>

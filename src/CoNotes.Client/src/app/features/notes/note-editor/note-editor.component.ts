@@ -1,6 +1,6 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Editor, Extensions } from '@tiptap/core';
 import Collaboration from '@tiptap/extension-collaboration';
 import StarterKit from '@tiptap/starter-kit';
@@ -16,7 +16,7 @@ import { NoteLinkSuggestion } from '../tiptap/note-link-suggestion';
 
 @Component({
   selector: 'app-note-editor',
-  imports: [FormsModule, NoteChatComponent],
+  imports: [FormsModule, NoteChatComponent, RouterLink],
   template: `
     <h1>{{ noteId() ? '編輯筆記' : '建立新筆記' }}</h1>
 
@@ -46,6 +46,12 @@ import { NoteLinkSuggestion } from '../tiptap/note-link-suggestion';
           <button type="button" (click)="revokeShareLink()">撤銷並換發</button>
         } @else {
           <button type="button" (click)="generateShareLink()">產生分享連結</button>
+        }
+        @if (shareLinkErrorMessage()) {
+          <p role="alert">
+            {{ shareLinkErrorMessage() }}
+            <a routerLink="/billing/plans">前往訂閱</a>
+          </p>
         }
 
         <h3>共編者</h3>
@@ -106,6 +112,7 @@ export class NoteEditorComponent implements AfterViewInit, OnDestroy {
     return shareToken ? `${globalThis.location.origin}/share/${shareToken}` : '';
   });
   protected readonly replayedAt = signal('');
+  protected readonly shareLinkErrorMessage = signal('');
   protected title = '';
   protected historyAt = toLocalDateTimeInputValue(new Date());
 
@@ -176,8 +183,12 @@ export class NoteEditorComponent implements AfterViewInit, OnDestroy {
     const noteId = this.noteId();
     if (!noteId) return;
 
-    this.noteService.generateShareLink(noteId).subscribe(({ shareToken }) => {
-      this.collaboration.update((settings) => settings ? { ...settings, shareToken } : settings);
+    this.shareLinkErrorMessage.set('');
+    this.noteService.generateShareLink(noteId).subscribe({
+      next: ({ shareToken }) => {
+        this.collaboration.update((settings) => settings ? { ...settings, shareToken } : settings);
+      },
+      error: () => this.shareLinkErrorMessage.set('訂閱等級不足，需要 Pro 以上才能產生分享連結。'),
     });
   }
 

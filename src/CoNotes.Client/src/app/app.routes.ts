@@ -25,4 +25,19 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/notes/note-share-join/note-share-join.component').then((m) => m.NoteShareJoinComponent),
   },
+  {
+    path: 'billing/plans',
+    loadComponent: () =>
+      import('./features/billing/billing-plans/billing-plans.component').then((m) => m.BillingPlansComponent),
+  },
+  {
+    path: 'billing/confirm',
+    loadComponent: () =>
+      import('./features/billing/billing-confirm/billing-confirm.component').then((m) => m.BillingConfirmComponent),
+  },
+  {
+    path: 'billing/redeem',
+    loadComponent: () =>
+      import('./features/billing/redeem-code/redeem-code.component').then((m) => m.RedeemCodeComponent),
+  },
 ];
