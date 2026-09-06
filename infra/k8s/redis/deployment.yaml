@@ -1,0 +1,23 @@
+# 只當 SignalR 的 pub/sub backplane 用(見 collab-editing 的 design.md)，沒有
+# 任何 note/chat 資料存在這裡——重啟頂多短暫漏掉即時訊息，不會遺失資料，所以
+# 不掛 PVC、單副本就接受(跟 Keycloak 同樣的取捨，見 design.md Risks)。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: collaboration-notes
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:8-alpine
+          ports:
+            - containerPort: 6379

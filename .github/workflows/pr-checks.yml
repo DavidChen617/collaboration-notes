@@ -20,9 +20,6 @@ jobs:
       - name: Build
         run: dotnet build CoNotes.slnx --no-restore
 
-      # Integration/Functional 測試用 Testcontainers 起真的 Postgres, GitHub-hosted
-      # ubuntu-latest runner 內建 Docker daemon, 不需要額外設定。
-      #
       # PayPalClientTests/BillingEndpointTests 有幾個測試打真的 PayPal sandbox API,
       # 跟其他需要真的外部依賴的測試是同樣的慣例(沒準備好就失敗, 不靜默略過), 所以
       # 這裡也要注入真的 sandbox 憑證, 見 repo Settings > Secrets and variables > Actions。

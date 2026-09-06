@@ -7,3 +7,4 @@ data:
   Authentication__Authority: https://auth.davish.net/realms/conotes
   Authentication__Audience: conotes-spa
   OpenTelemetry__OtlpEndpoint: http://signoz-otel-collector.signoz.svc.cluster.local:4318
+  Redis__ConnectionString: redis.collaboration-notes.svc.cluster.local:6379

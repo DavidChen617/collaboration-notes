@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Testcontainers.Redis;
 
 namespace IntegrationTests;
 
@@ -30,7 +31,6 @@ namespace IntegrationTests;
 [Collection(nameof(DatabaseCollection))]
 public sealed class NoteCollabHubReplicaTests : IAsyncLifetime
 {
-    private const string RedisConnectionString = "localhost:6379";
     private const string TestIssuer = "https://auth.test/realms/conotes";
     private const string TestAudience = "conotes-spa";
 
@@ -38,12 +38,14 @@ public sealed class NoteCollabHubReplicaTests : IAsyncLifetime
         new(Encoding.UTF8.GetBytes("integration-tests-signalr-signing-key-do-not-use-elsewhere"));
 
     private readonly IntegrationTestWebAppFactory _dbHost = new();
+    private readonly RedisContainer _redisContainer = new RedisBuilder("redis:8-alpine").Build();
     private WebApplicationFactory<Program> _replica1 = null!;
     private WebApplicationFactory<Program> _replica2 = null!;
 
     public async Task InitializeAsync()
     {
         await _dbHost.InitializeAsync();
+        await _redisContainer.StartAsync();
 
         _replica1 = _dbHost.WithWebHostBuilder(ConfigureReplica);
         _replica2 = _dbHost.WithWebHostBuilder(ConfigureReplica);
@@ -54,11 +56,12 @@ public sealed class NoteCollabHubReplicaTests : IAsyncLifetime
         await _replica1.DisposeAsync();
         await _replica2.DisposeAsync();
         await _dbHost.DisposeAsync();
+        await _redisContainer.DisposeAsync();
     }
 
-    private static void ConfigureReplica(IWebHostBuilder builder)
+    private void ConfigureReplica(IWebHostBuilder builder)
     {
-        builder.UseSetting("Redis:ConnectionString", RedisConnectionString);
+        builder.UseSetting("Redis:ConnectionString", _redisContainer.GetConnectionString());
 
         builder.ConfigureTestServices(services =>
         {
