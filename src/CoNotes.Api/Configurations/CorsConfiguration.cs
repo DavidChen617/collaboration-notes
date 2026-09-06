@@ -13,7 +13,8 @@ internal static class CorsConfiguration
             services.AddCors(o => o.AddPolicy(PolicyName, policy =>
                 policy.WithOrigins(allowedOrigins)
                       .AllowAnyHeader()
-                      .AllowAnyMethod()));
+                      .AllowAnyMethod()
+                      .AllowCredentials()));
 
             return services;
         }

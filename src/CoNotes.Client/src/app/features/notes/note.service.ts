@@ -3,7 +3,15 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from '../../core/app-config';
-import { NoteDetail, NoteGraph, NoteHistory, NoteSearchResult, NoteSummary, ShareLinkResult } from './note.model';
+import {
+  NoteCollaboration,
+  NoteDetail,
+  NoteGraph,
+  NoteHistory,
+  NoteSearchResult,
+  NoteSummary,
+  ShareLinkResult,
+} from './note.model';
 
 interface ListNotesResponse {
   notes: NoteSummary[];
@@ -59,6 +67,10 @@ export class NoteService {
   getHistory(noteId: string, atUtc?: string): Observable<NoteHistory> {
     const params = atUtc ? { at: atUtc } : undefined;
     return this.http.get<NoteHistory>(`${this.baseUrl}/${noteId}/history`, { params });
+  }
+
+  getCollaboration(noteId: string): Observable<NoteCollaboration> {
+    return this.http.get<NoteCollaboration>(`${this.baseUrl}/${noteId}/collaboration`);
   }
 
   generateShareLink(noteId: string): Observable<ShareLinkResult> {

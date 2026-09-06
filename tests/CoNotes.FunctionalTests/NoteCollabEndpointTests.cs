@@ -128,6 +128,39 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     }
 
     [Fact]
+    public async Task GivenOwner_WhenGettingCollaborationSettings_ThenReturnsShareTokenAndCollaborators()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var collaborator = await CreateProvisionedClientAsync();
+        var noteId = await CreateNoteAsync(owner, "Title", "Content");
+        var shareToken = await GenerateShareLinkAsync(owner, noteId);
+        await JoinAsync(collaborator, shareToken);
+        var collaboratorAppUserId = await GetAppUserIdAsync(collaborator);
+
+        var response = await owner.GetAsync($"{NotesEndpoint}/{noteId}/collaboration");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<CollaborationResponse>();
+        Assert.NotNull(body);
+        Assert.Equal(shareToken, body.ShareToken);
+        Assert.Equal([collaboratorAppUserId], body.CollaboratorAppUserIds);
+    }
+
+    [Fact]
+    public async Task GivenCollaborator_WhenGettingCollaborationSettings_ThenIsRejected()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var collaborator = await CreateProvisionedClientAsync();
+        var noteId = await CreateNoteAsync(owner, "Title", "Content");
+        var shareToken = await GenerateShareLinkAsync(owner, noteId);
+        await JoinAsync(collaborator, shareToken);
+
+        var response = await collaborator.GetAsync($"{NotesEndpoint}/{noteId}/collaboration");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GivenOwner_WhenGettingNoteHistory_ThenReturns200WithEmptyHistoryForANoteWithNoLiveEdits()
     {
         var owner = await CreateProvisionedClientAsync();
@@ -206,6 +239,8 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     private sealed record AppUserResponse(Guid AppUserId);
 
     private sealed record NoteHistoryResponse(byte[]? BaseSnapshot, List<byte[]> SubsequentUpdates);
+
+    private sealed record CollaborationResponse(string? ShareToken, List<Guid> CollaboratorAppUserIds);
 
     private sealed record NoteItem(Guid NoteId, string Title, string Content);
 

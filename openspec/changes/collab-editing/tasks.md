@@ -47,12 +47,12 @@
 
 ## 5. 前端整合
 
-- [x] 5.1 在 Tiptap 編輯器加上官方的 Yjs 協作擴充套件，串接 SignalR 當傳輸層（前端 `tsc --noEmit` 通過；`ng build` 目前仍以 SIGABRT 中止，沒有 Angular/TypeScript 診斷訊息，需在 5.2 前釐清）
-- [ ] 5.2 驗證兩個瀏覽器分頁同時編輯同一篇筆記，彼此的變更即時同步、沒有內容被覆蓋遺失
-- [ ] 5.3 新增「產生/撤銷分享連結」與「移除共編者」的 UI，串接對應 API
-- [ ] 5.4 新增筆記編輯歷史的檢視功能，可以選擇過去時間點回放內容
+- [x] 5.1 在 Tiptap 編輯器加上官方的 Yjs 協作擴充套件，串接 SignalR 當傳輸層（前端 `tsc --noEmit` 與 `ng build` 均通過；`ng build` 曾在 sandbox 內以 SIGABRT 中止，改用完整權限重跑後成功，沒有 Angular/TypeScript 診斷錯誤）
+- [x] 5.2 驗證兩個瀏覽器分頁同時編輯同一篇筆記，彼此的變更即時同步、沒有內容被覆蓋遺失（用兩個臨時 Keycloak 使用者與兩個獨立 Playwright Chromium context 實測：擁有者先開啟筆記並等初始 Yjs update 寫入 history，共編者再開啟同一篇筆記；兩邊同時輸入各自的唯一文字後，最終內容完全一致、同時包含雙方變更，原始內容也只出現一次。過程中發現 SignalR negotiate 被瀏覽器 CORS credentials 規則攔截，已在既有特定來源 policy 加上 `AllowCredentials()`，並補功能測試鎖住 preflight 回應）
+- [x] 5.3 新增「產生/撤銷分享連結」與「移除共編者」的 UI，串接對應 API（新增 owner-only `GET /notes/{noteId}/collaboration` 回傳目前 token 與共編者 UUID，供編輯畫面的共編管理區使用；新增 `/share/{shareToken}` 前端路由，登入後自動加入並導向筆記。用兩個臨時 Keycloak 使用者與兩個獨立 Playwright Chromium context 實測：擁有者可產生分享網址、共編者透過網址加入、擁有者撤銷後取得不同的新網址、共編者出現在清單且可移除；共編者看不到管理區，移除後讀取筆記回 400）
+- [x] 5.4 新增筆記編輯歷史的檢視功能，可以選擇過去時間點回放內容（編輯畫面新增毫秒精度的時間選擇與獨立唯讀 Tiptap；每次回放都建立不連 SignalR 的本地 `Y.Doc`，套用 API 回傳的快照與後續更新，切換時間前會銷毀前一個回放實例。Playwright 實測先後輸入兩段唯一文字，選擇兩次修改之間的時間點後，回放內容包含第一段、排除較晚的第二段，且 `contenteditable=false`）
 
 ## 6. 端對端驗證
 
-- [ ] 6.1 逐一驗證 `specs/collab-editing/spec.md` 的六個 Requirement 全數通過
-- [ ] 6.2 逐一驗證 `specs/notes/spec.md` 這次修改的三個 Requirement（列表、讀取、更新）全數通過，且刪除/建立的行為未受影響
+- [x] 6.1 逐一驗證 `specs/collab-editing/spec.md` 的六個 Requirement 全數通過（產生/多人使用分享連結、撤銷後舊連結失效且既有共編者保留、移除共編者後失去存取權、只有擁有者可管理、兩個瀏覽器同步無覆蓋遺失、指定時點歷史回放，分別由 Domain/Application 單元測試、API 功能測試、Redis 雙 replica/Yjs 整合測試與 Playwright 實測覆蓋；完整 `CoNotes.slnx` 85/85 通過、前端 TypeScript 檢查與 production build 通過、OpenSpec strict validation 通過）
+- [x] 6.2 逐一驗證 `specs/notes/spec.md` 這次修改的三個 Requirement（列表、讀取、更新）全數通過，且刪除/建立的行為未受影響（`NoteEndpointTests` 驗證擁有者列表/讀取/更新、無關使用者讀取/更新被拒絕且內容不變，以及建立/刪除的成功與授權失敗路徑；`NoteCollabEndpointTests` 驗證共編者的筆記會出現在列表並可讀取/更新，無關使用者看不到且無法讀取/更新；指定兩組 HTTP 功能測試 23/23 通過）

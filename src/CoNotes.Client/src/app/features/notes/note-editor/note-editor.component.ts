@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, inject, signal, viewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Editor, Extensions } from '@tiptap/core';
@@ -8,6 +8,7 @@ import { firstValueFrom } from 'rxjs';
 import * as Y from 'yjs';
 
 import { NoteCollabService, NoteCollabSession, fromBase64 } from '../note-collab.service';
+import { NoteCollaboration } from '../note.model';
 import { NoteService } from '../note.service';
 import { NoteLinkNode } from '../tiptap/note-link-node';
 import { NoteLinkSuggestion } from '../tiptap/note-link-suggestion';
@@ -31,6 +32,51 @@ import { NoteLinkSuggestion } from '../tiptap/note-link-suggestion';
 
       <button type="submit">儲存</button>
     </form>
+
+    @if (collaboration(); as settings) {
+      <section>
+        <h2>共編管理</h2>
+
+        @if (settings.shareToken) {
+          <label>
+            分享連結
+            <input type="text" readonly [value]="shareUrl()" />
+          </label>
+          <button type="button" (click)="revokeShareLink()">撤銷並換發</button>
+        } @else {
+          <button type="button" (click)="generateShareLink()">產生分享連結</button>
+        }
+
+        <h3>共編者</h3>
+        @if (settings.collaboratorAppUserIds.length === 0) {
+          <p>目前沒有共編者。</p>
+        } @else {
+          <ul>
+            @for (collaboratorAppUserId of settings.collaboratorAppUserIds; track collaboratorAppUserId) {
+              <li>
+                <code>{{ collaboratorAppUserId }}</code>
+                <button type="button" (click)="removeCollaborator(collaboratorAppUserId)">移除</button>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+
+    @if (noteId()) {
+      <section>
+        <h2>編輯歷史</h2>
+        <label>
+          回放時間
+          <input type="datetime-local" step="0.001" [(ngModel)]="historyAt" name="historyAt" />
+        </label>
+        <button type="button" (click)="replayHistory()">回放</button>
+        @if (replayedAt()) {
+          <p>回放時間：<time>{{ replayedAt() }}</time></p>
+        }
+        <div #historyEditorHost [hidden]="!replayedAt()"></div>
+      </section>
+    }
   `,
   styles: [],
 })
@@ -41,11 +87,22 @@ export class NoteEditorComponent implements AfterViewInit, OnDestroy {
   private readonly noteCollabService = inject(NoteCollabService);
 
   private readonly editorHost = viewChild.required<ElementRef<HTMLDivElement>>('editorHost');
+  private readonly historyEditorHost = viewChild<ElementRef<HTMLDivElement>>('historyEditorHost');
   private editor: Editor | null = null;
   private collabSession: NoteCollabSession | null = null;
+  private historyEditor: Editor | null = null;
+  private historyDoc: Y.Doc | null = null;
+  private originalContent = '';
 
   protected readonly noteId = signal<string | null>(null);
+  protected readonly collaboration = signal<NoteCollaboration | null>(null);
+  protected readonly shareUrl = computed(() => {
+    const shareToken = this.collaboration()?.shareToken;
+    return shareToken ? `${globalThis.location.origin}/share/${shareToken}` : '';
+  });
+  protected readonly replayedAt = signal('');
   protected title = '';
+  protected historyAt = toLocalDateTimeInputValue(new Date());
 
   constructor() {
     this.noteId.set(this.route.snapshot.paramMap.get('noteId'));
@@ -63,12 +120,16 @@ export class NoteEditorComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.editor?.destroy();
+    this.historyEditor?.destroy();
+    this.historyDoc?.destroy();
     void this.collabSession?.disconnect();
   }
 
   private async initializeCollaborativeEditor(noteId: string): Promise<void> {
     const note = await firstValueFrom(this.noteService.get(noteId));
     this.title = note.title;
+    this.originalContent = note.content;
+    this.loadCollaboration(noteId);
 
     this.collabSession = await this.noteCollabService.connect(noteId);
     const history = await firstValueFrom(this.noteService.getHistory(noteId));
@@ -97,6 +158,88 @@ export class NoteEditorComponent implements AfterViewInit, OnDestroy {
     }
 
     this.refreshLinkLabels();
+  }
+
+  private loadCollaboration(noteId: string): void {
+    this.noteService.getCollaboration(noteId).subscribe({
+      next: (settings) => this.collaboration.set(settings),
+      error: () => this.collaboration.set(null),
+    });
+  }
+
+  protected generateShareLink(): void {
+    const noteId = this.noteId();
+    if (!noteId) return;
+
+    this.noteService.generateShareLink(noteId).subscribe(({ shareToken }) => {
+      this.collaboration.update((settings) => settings ? { ...settings, shareToken } : settings);
+    });
+  }
+
+  protected revokeShareLink(): void {
+    const noteId = this.noteId();
+    if (!noteId) return;
+
+    this.noteService.revokeShareLink(noteId).subscribe(({ shareToken }) => {
+      this.collaboration.update((settings) => settings ? { ...settings, shareToken } : settings);
+    });
+  }
+
+  protected removeCollaborator(collaboratorAppUserId: string): void {
+    const noteId = this.noteId();
+    if (!noteId) return;
+
+    this.noteService.removeCollaborator(noteId, collaboratorAppUserId).subscribe(() => {
+      this.collaboration.update((settings) => settings ? {
+        ...settings,
+        collaboratorAppUserIds: settings.collaboratorAppUserIds.filter((id) => id !== collaboratorAppUserId),
+      } : settings);
+    });
+  }
+
+  protected async replayHistory(): Promise<void> {
+    const noteId = this.noteId();
+    const historyEditorHost = this.historyEditorHost();
+    if (!noteId || !this.historyAt || !historyEditorHost) return;
+
+    const atUtc = new Date(this.historyAt).toISOString();
+    const history = await firstValueFrom(this.noteService.getHistory(noteId, atUtc));
+    const doc = new Y.Doc();
+
+    if (history.baseSnapshot) {
+      Y.applyUpdate(doc, fromBase64(history.baseSnapshot), 'remote');
+    }
+    for (const update of history.subsequentUpdates) {
+      Y.applyUpdate(doc, fromBase64(update), 'remote');
+    }
+
+    this.historyEditor?.destroy();
+    this.historyDoc?.destroy();
+
+    const fragment = doc.getXmlFragment('default');
+    if (fragment.length === 0) {
+      doc.destroy();
+      this.historyDoc = null;
+      this.historyEditor = new Editor({
+        element: historyEditorHost.nativeElement,
+        extensions: [StarterKit, NoteLinkNode],
+        content: this.originalContent,
+        editable: false,
+      });
+    } else {
+      this.historyDoc = doc;
+      this.historyEditor = new Editor({
+        element: historyEditorHost.nativeElement,
+        extensions: [
+          StarterKit.configure({ undoRedo: false }),
+          Collaboration.configure({ document: doc }),
+          NoteLinkNode,
+        ],
+        editable: false,
+      });
+    }
+
+    this.replayedAt.set(new Date(atUtc).toLocaleString());
   }
 
   private createEditor(extraExtensions: Extensions): Editor {
@@ -149,4 +292,9 @@ export class NoteEditorComponent implements AfterViewInit, OnDestroy {
 
     result$.subscribe(() => this.router.navigateByUrl('/notes'));
   }
+}
+
+function toLocalDateTimeInputValue(date: Date): string {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 23);
 }

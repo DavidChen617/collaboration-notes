@@ -43,3 +43,8 @@ export interface NoteHistory {
 export interface ShareLinkResult {
   shareToken: string;
 }
+
+export interface NoteCollaboration {
+  shareToken: string | null;
+  collaboratorAppUserIds: string[];
+}

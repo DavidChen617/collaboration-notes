@@ -20,4 +20,9 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/notes/note-editor/note-editor.component').then((m) => m.NoteEditorComponent),
   },
+  {
+    path: 'share/:shareToken',
+    loadComponent: () =>
+      import('./features/notes/note-share-join/note-share-join.component').then((m) => m.NoteShareJoinComponent),
+  },
 ];

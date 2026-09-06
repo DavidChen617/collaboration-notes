@@ -8,6 +8,7 @@ using CoNotes.Application.Notes.Commands.Revoke;
 using CoNotes.Application.Notes.Commands.Share;
 using CoNotes.Application.Notes.Commands.Update;
 using CoNotes.Application.Notes.Queries.Get;
+using CoNotes.Application.Notes.Queries.GetCollaboration;
 using CoNotes.Application.Notes.Queries.GetGraph;
 using CoNotes.Application.Notes.Queries.GetHistory;
 using CoNotes.Application.Notes.Queries.List;
@@ -36,6 +37,7 @@ public static class Dependency
                 .AddRequestHandler<RemoveCollaboratorCommand, Result, RemoveCollaboratorCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
                 .AddRequestHandler<ListNotesQuery, Result<ListNotesDto>, ListNotesQueryHandler>()
                 .AddRequestHandler<GetNoteQuery, Result<GetNoteDto>, GetNoteQueryHandler>()
+                .AddRequestHandler<GetNoteCollaborationQuery, Result<GetNoteCollaborationDto>, GetNoteCollaborationQueryHandler>()
                 .AddRequestHandler<SearchNotesByTitleQuery, Result<SearchNotesByTitleDto>, SearchNotesByTitleQueryHandler>()
                 .AddRequestHandler<GetNoteGraphQuery, Result<NoteGraphDto>, GetNoteGraphQueryHandler>()
                 .AddRequestHandler<GetNoteHistoryQuery, Result<GetNoteHistoryDto>, GetNoteHistoryQueryHandler>();
