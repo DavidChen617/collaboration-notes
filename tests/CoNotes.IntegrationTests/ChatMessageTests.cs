@@ -40,6 +40,8 @@ public sealed class ChatMessageTests(IntegrationTestWebAppFactory factory)
         var sender = services.GetRequiredService<ISender>();
         var chatMessageRepository = services.GetRequiredService<IChatMessageRepository>();
         var (owner, noteId) = await CreateOwnerAndNoteAsync(services);
+        owner.ApplyRedeemedPlanTier(PlanTier.Pro);
+        await appUserRepository.UpdateAsync(owner, CancellationToken.None);
         var collaborator = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         var unrelatedUser = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(collaborator, CancellationToken.None);

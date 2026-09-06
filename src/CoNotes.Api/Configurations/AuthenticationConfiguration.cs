@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using System.Text.Json;
 using CoNotes.Application.AppUsers.Commands.Upsert;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -38,6 +40,8 @@ internal static class AuthenticationConfiguration
 
                             var sender = context.HttpContext.RequestServices.GetRequiredService<ISender>();
                             await sender.SendAsync(new UpsertAppUserCommand(keycloakSub), context.HttpContext.RequestAborted);
+
+                            AddRealmRoleClaims(context.Principal!);
                         },
                         // 瀏覽器的 WebSocket 交握沒辦法帶自訂的 Authorization header, 所以 SignalR 連線
                         // 改用 query string 的 access_token 帶 JWT; 只在打 /hubs 底下的路徑時才這樣讀,
@@ -55,6 +59,31 @@ internal static class AuthenticationConfiguration
                 });
 
             return services;
+        }
+    }
+
+    /// <summary>
+    /// Keycloak 把 realm role 放在 <c>realm_access</c> 這個claim 裡, 值是一段 JSON(<c>{"roles":[...]}</c>),
+    /// 不是 ASP.NET Core 角色驗證(<see cref="ClaimsPrincipal.IsInRole"/>／<c>RequireRole</c>)看的那種
+    /// 一個角色一個 claim 的格式。這裡把它攤平成一般的 <see cref="ClaimTypes.Role"/> claim,
+    /// 系統管理者的 endpoint 才能直接用 <c>RequireRole("admin")</c> 檢查, 不用另外自己解析 JSON。
+    /// </summary>
+    private static void AddRealmRoleClaims(ClaimsPrincipal principal)
+    {
+        var realmAccessJson = principal.FindFirst("realm_access")?.Value;
+        if (realmAccessJson is null)
+            return;
+
+        using var document = JsonDocument.Parse(realmAccessJson);
+        if (!document.RootElement.TryGetProperty("roles", out var rolesElement))
+            return;
+
+        var identity = (ClaimsIdentity)principal.Identity!;
+        foreach (var role in rolesElement.EnumerateArray())
+        {
+            var roleName = role.GetString();
+            if (roleName is not null)
+                identity.AddClaim(new Claim(ClaimTypes.Role, roleName));
         }
     }
 }

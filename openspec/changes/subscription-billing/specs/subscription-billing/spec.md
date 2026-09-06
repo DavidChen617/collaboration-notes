@@ -1,16 +1,16 @@
 ## Purpose
 
-讓使用者可以透過 PayPal 訂閱付款取得對應等級的 license code，兌換後一次性解鎖 Pro 或 ProMax 等級；等級一旦兌換生效，不隨後續 PayPal 扣款狀態自動變動，需要系統管理者手動撤銷。
+讓使用者可以透過 PayPal 一次性付款取得對應等級的 license code，兌換後一次性解鎖 Pro 或 ProMax 等級；等級一旦兌換生效，不隨這筆付款後續狀態（退款、申訴爭議）自動變動，需要系統管理者手動撤銷。
 
 ## ADDED Requirements
 
-### Requirement: 使用者透過 PayPal 訂閱取得對應等級的 license code
-使用者透過 PayPal 完成一筆訂閱付款、且該訂閱首次啟用成功時，系統 SHALL 產生一組對應該訂閱等級、尚未使用過的 license code。
+### Requirement: 使用者透過 PayPal 付款取得對應等級的 license code
+使用者透過 PayPal 完成一筆一次性付款時，系統 SHALL 產生一組對應該付款等級、尚未使用過的 license code。
 
 **Path**: Command（`IssueLicenseCodeCommand`，由 PayPal webhook 觸發，發出 `LicenseCodeIssued`）
 
-#### Scenario: 訂閱付款成功後產生 license code
-- **WHEN** 使用者透過 PayPal 完成一筆 Pro 或 ProMax 等級的訂閱付款，且該訂閱首次啟用成功
+#### Scenario: 付款完成後產生 license code
+- **WHEN** 使用者透過 PayPal 完成一筆 Pro 或 ProMax 等級的一次性付款
 - **THEN** 系統產生一組對應該等級、尚未使用過的 license code
 
 ### Requirement: 使用者可以兌換有效的 license code
@@ -32,12 +32,12 @@
 - **THEN** 系統拒絕此次兌換，該使用者的訂閱等級不變
 
 ### Requirement: 已兌換生效的訂閱等級不隨 PayPal 後續狀態自動變動
-使用者兌換 license code 取得的訂閱等級，SHALL NOT 因為對應 PayPal 訂閱後續被取消或扣款失敗而被系統自動調整。
+使用者兌換 license code 取得的訂閱等級，SHALL NOT 因為對應 PayPal 付款後續被退款或申訴爭議而被系統自動調整。
 
-**Path**: Command（不變條件——描述的是撤銷/變更等級這個 Command 路徑*不會*被觸發，而非一個獨立的讀寫動作；系統只監聽「訂閱首次啟用成功」事件，PayPal 後續事件完全不會分派任何 Command）
+**Path**: Command（不變條件——描述的是撤銷/變更等級這個 Command 路徑*不會*被觸發，而非一個獨立的讀寫動作；系統只監聽「付款完成」事件，PayPal 後續事件完全不會分派任何 Command）
 
-#### Scenario: PayPal 訂閱後續狀態變化不影響已兌換的等級
-- **WHEN** 使用者已經兌換 code 取得 Pro 或 ProMax 等級之後，其原本對應的 PayPal 訂閱被取消或扣款失敗
+#### Scenario: PayPal 付款後續狀態變化不影響已兌換的等級
+- **WHEN** 使用者已經兌換 code 取得 Pro 或 ProMax 等級之後，其原本對應的 PayPal 付款被退款或申訴爭議
 - **THEN** 該使用者的訂閱等級維持不變，不會被系統自動調整
 
 ### Requirement: 系統管理者可以手動撤銷使用者的訂閱等級

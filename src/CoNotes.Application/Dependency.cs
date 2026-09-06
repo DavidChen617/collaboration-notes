@@ -1,4 +1,8 @@
 using CoNotes.Application.AppUsers.Commands.Upsert;
+using CoNotes.Application.AppUsers.EventHandling;
+using CoNotes.Application.Billing.Commands.Issue;
+using CoNotes.Application.Billing.Commands.Redeem;
+using CoNotes.Application.Billing.Commands.Revoke;
 using CoNotes.Application.ChatMessages.Commands.GenerateAiReply;
 using CoNotes.Application.ChatMessages.Commands.Send;
 using CoNotes.Application.ChatMessages.EventHandling;
@@ -17,6 +21,7 @@ using CoNotes.Application.Notes.Queries.GetGraph;
 using CoNotes.Application.Notes.Queries.GetHistory;
 using CoNotes.Application.Notes.Queries.List;
 using CoNotes.Application.Notes.Queries.Search;
+using CoNotes.Domain.Billing.Events;
 using CoNotes.Domain.ChatMessages.Events;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -42,6 +47,9 @@ public static class Dependency
                 .AddRequestHandler<RemoveCollaboratorCommand, Result, RemoveCollaboratorCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
                 .AddRequestHandler<SendChatMessageCommand, Result<SendChatMessageDto>, SendChatMessageCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
                 .AddRequestHandler<GenerateAiReplyCommand, Result<GenerateAiReplyDto>, GenerateAiReplyCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
+                .AddRequestHandler<IssueLicenseCodeCommand, Result<IssueLicenseCodeDto>, IssueLicenseCodeCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
+                .AddRequestHandler<RedeemLicenseCodeCommand, Result<RedeemLicenseCodeDto>, RedeemLicenseCodeCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
+                .AddRequestHandler<RevokeAppUserPlanTierCommand, Result, RevokeAppUserPlanTierCommandHandler>(o => o.Decorator.With<TransactionalDecorator>())
                 .AddRequestHandler<GetChatHistoryQuery, Result<GetChatHistoryDto>, GetChatHistoryQueryHandler>()
                 .AddRequestHandler<ListNotesQuery, Result<ListNotesDto>, ListNotesQueryHandler>()
                 .AddRequestHandler<GetNoteQuery, Result<GetNoteDto>, GetNoteQueryHandler>()
@@ -52,6 +60,8 @@ public static class Dependency
 
             services.AddNotificationHandler<AiReplyRequestedDomainEvent>(o =>
                 o.Handler.Sequence.With<AiReplyRequestedDomainEventHandler>());
+            services.AddNotificationHandler<LicenseCodeRedeemedDomainEvent>(o =>
+                o.Handler.Sequence.With<LicenseCodeRedeemedDomainEventHandler>());
 
             return services;
         }

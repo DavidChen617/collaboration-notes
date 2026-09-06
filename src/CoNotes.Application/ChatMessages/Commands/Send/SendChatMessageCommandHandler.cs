@@ -1,3 +1,4 @@
+using CoNotes.Domain.AppUsers;
 using CoNotes.Domain.ChatMessages;
 
 namespace CoNotes.Application.ChatMessages.Commands.Send;
@@ -5,6 +6,7 @@ namespace CoNotes.Application.ChatMessages.Commands.Send;
 internal sealed class SendChatMessageCommandHandler(
     IUserContext userContext,
     INoteRepository noteRepository,
+    IAppUserRepository appUserRepository,
     IChatMessageRepository chatMessageRepository,
     IChatMessageBroadcaster chatMessageBroadcaster,
     TimeProvider timeProvider
@@ -25,6 +27,11 @@ internal sealed class SendChatMessageCommandHandler(
 
         if (!note.IsAccessibleBy(authorAppUserId))
             return new Error("ChatMessage.Send", "使用者沒有權限存取這篇筆記的聊天室!", ErrorType.BadRequest);
+
+        var owner = await appUserRepository.FindByIdAsync(note.OwnerAppUserId, cancellationToken);
+
+        if (owner is null || owner.PlanTier != PlanTier.ProMax)
+            return new Error("ChatMessage.Send", "筆記擁有者的訂閱等級須為 ProMax 才能使用聊天室!", ErrorType.BadRequest);
 
         var chatMessage = ChatMessage.Create(
             command.NoteId,

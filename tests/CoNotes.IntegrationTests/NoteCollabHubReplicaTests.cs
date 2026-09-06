@@ -175,6 +175,7 @@ public sealed class NoteCollabHubReplicaTests : IAsyncLifetime
         var client = _replica1.CreateClient();
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        await client.PostAsJsonAsync("/api/test/app-user/plan-tier", new { PlanTier = "ProMax" });
         var createResponse = await client.PostAsJsonAsync(
             "/api/v1/notes",
             new { Title = "Chat note", Content = "Content" }

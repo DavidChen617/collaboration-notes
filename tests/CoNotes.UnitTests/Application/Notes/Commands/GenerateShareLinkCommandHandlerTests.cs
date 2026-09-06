@@ -1,7 +1,9 @@
 using CoNotes.Application.Abstractions;
 using CoNotes.Application.Notes.Commands.Share;
+using CoNotes.Domain.AppUsers;
 using CoNotes.Domain.Notes;
 using NSubstitute;
+using AppUserAggregate = CoNotes.Domain.AppUsers.AppUser;
 using NoteAggregate = CoNotes.Domain.Notes.Note;
 
 namespace UnitTests.Application.Notes.Commands;
@@ -20,7 +22,9 @@ public class GenerateShareLinkCommandHandlerTests
         var noteRepository = Substitute.For<INoteRepository>();
         noteRepository.GetByIdAsync(note.Id, Arg.Any<CancellationToken>()).Returns(note);
 
-        var handler = new GenerateShareLinkCommandHandler(userContext, noteRepository);
+        var appUserRepository = CreateOwnerRepository(ownerAppUserId, PlanTier.Pro);
+
+        var handler = new GenerateShareLinkCommandHandler(userContext, noteRepository, appUserRepository);
         var command = new GenerateShareLinkCommand(note.Id);
 
         var result = await handler.HandleAsync(command, CancellationToken.None);
@@ -44,7 +48,9 @@ public class GenerateShareLinkCommandHandlerTests
         var noteRepository = Substitute.For<INoteRepository>();
         noteRepository.GetByIdAsync(note.Id, Arg.Any<CancellationToken>()).Returns(note);
 
-        var handler = new GenerateShareLinkCommandHandler(userContext, noteRepository);
+        var appUserRepository = CreateOwnerRepository(ownerAppUserId, PlanTier.Pro);
+
+        var handler = new GenerateShareLinkCommandHandler(userContext, noteRepository, appUserRepository);
         var command = new GenerateShareLinkCommand(note.Id);
 
         var result = await handler.HandleAsync(command, CancellationToken.None);
@@ -52,5 +58,62 @@ public class GenerateShareLinkCommandHandlerTests
         Assert.False(result.IsSuccess);
         Assert.Equal("Note.GenerateShareLink", result.Error.Code);
         await noteRepository.DidNotReceive().UpdateAsync(Arg.Any<NoteAggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(PlanTier.Pro)]
+    [InlineData(PlanTier.ProMax)]
+    public async Task GivenOwnerPlanTierProOrAbove_WhenGenerateShareLinkCommandHandled_ThenSucceeds(PlanTier planTier)
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
+
+        var userContext = Substitute.For<IUserContext>();
+        userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(ownerAppUserId);
+
+        var noteRepository = Substitute.For<INoteRepository>();
+        noteRepository.GetByIdAsync(note.Id, Arg.Any<CancellationToken>()).Returns(note);
+
+        var appUserRepository = CreateOwnerRepository(ownerAppUserId, planTier);
+
+        var handler = new GenerateShareLinkCommandHandler(userContext, noteRepository, appUserRepository);
+        var command = new GenerateShareLinkCommand(note.Id);
+
+        var result = await handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task GivenOwnerPlanTierFree_WhenGenerateShareLinkCommandHandled_ThenRejected()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
+
+        var userContext = Substitute.For<IUserContext>();
+        userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(ownerAppUserId);
+
+        var noteRepository = Substitute.For<INoteRepository>();
+        noteRepository.GetByIdAsync(note.Id, Arg.Any<CancellationToken>()).Returns(note);
+
+        var appUserRepository = CreateOwnerRepository(ownerAppUserId, PlanTier.Free);
+
+        var handler = new GenerateShareLinkCommandHandler(userContext, noteRepository, appUserRepository);
+        var command = new GenerateShareLinkCommand(note.Id);
+
+        var result = await handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Note.GenerateShareLink", result.Error.Code);
+        await noteRepository.DidNotReceive().UpdateAsync(Arg.Any<NoteAggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    private static IAppUserRepository CreateOwnerRepository(Guid ownerAppUserId, PlanTier planTier)
+    {
+        var owner = AppUserAggregate.Rehydrate(ownerAppUserId, Guid.NewGuid().ToString(), DateTime.UtcNow, planTier);
+        var appUserRepository = Substitute.For<IAppUserRepository>();
+        appUserRepository.FindByIdAsync(ownerAppUserId, Arg.Any<CancellationToken>()).Returns(owner);
+
+        return appUserRepository;
     }
 }

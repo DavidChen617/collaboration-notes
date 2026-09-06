@@ -1,9 +1,11 @@
 using CoNotes.Application.Abstractions;
 using CoNotes.Application.ChatMessages.Commands.Send;
+using CoNotes.Domain.AppUsers;
 using CoNotes.Domain.ChatMessages;
 using CoNotes.Domain.Notes;
 using Davish.Result;
 using NSubstitute;
+using AppUserAggregate = CoNotes.Domain.AppUsers.AppUser;
 using NoteAggregate = CoNotes.Domain.Notes.Note;
 
 namespace UnitTests.Application.ChatMessages.Commands;
@@ -91,13 +93,60 @@ public class SendChatMessageCommandHandlerTests
         );
     }
 
-    private static Dependencies CreateDependencies(NoteAggregate note, Guid requestingAppUserId)
+    [Fact]
+    public async Task GivenOwnerPlanTierProMax_WhenSendChatMessageCommandHandled_ThenSucceeds()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
+        var dependencies = CreateDependencies(note, ownerAppUserId, PlanTier.ProMax);
+        var handler = dependencies.CreateHandler();
+
+        var result = await handler.HandleAsync(
+            new SendChatMessageCommand(note.Id, "Hello"),
+            CancellationToken.None
+        );
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Theory]
+    [InlineData(PlanTier.Free)]
+    [InlineData(PlanTier.Pro)]
+    public async Task GivenOwnerPlanTierNotProMax_WhenSendChatMessageCommandHandled_ThenRejected(PlanTier planTier)
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
+        var dependencies = CreateDependencies(note, ownerAppUserId, planTier);
+        var handler = dependencies.CreateHandler();
+
+        var result = await handler.HandleAsync(
+            new SendChatMessageCommand(note.Id, "Hello"),
+            CancellationToken.None
+        );
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("ChatMessage.Send", result.Error.Code);
+        await dependencies.ChatMessageRepository.DidNotReceive().AddAsync(
+            Arg.Any<ChatMessage>(),
+            Arg.Any<CancellationToken>()
+        );
+    }
+
+    private static Dependencies CreateDependencies(
+        NoteAggregate note,
+        Guid requestingAppUserId,
+        PlanTier ownerPlanTier = PlanTier.ProMax
+    )
     {
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(requestingAppUserId);
 
         var noteRepository = Substitute.For<INoteRepository>();
         noteRepository.GetByIdAsync(note.Id, Arg.Any<CancellationToken>()).Returns(note);
+
+        var owner = AppUserAggregate.Rehydrate(note.OwnerAppUserId, Guid.NewGuid().ToString(), DateTime.UtcNow, ownerPlanTier);
+        var appUserRepository = Substitute.For<IAppUserRepository>();
+        appUserRepository.FindByIdAsync(note.OwnerAppUserId, Arg.Any<CancellationToken>()).Returns(owner);
 
         var chatMessageRepository = Substitute.For<IChatMessageRepository>();
         chatMessageRepository
@@ -107,6 +156,7 @@ public class SendChatMessageCommandHandlerTests
         return new Dependencies(
             userContext,
             noteRepository,
+            appUserRepository,
             chatMessageRepository,
             Substitute.For<IChatMessageBroadcaster>()
         );
@@ -115,11 +165,12 @@ public class SendChatMessageCommandHandlerTests
     private sealed record Dependencies(
         IUserContext UserContext,
         INoteRepository NoteRepository,
+        IAppUserRepository AppUserRepository,
         IChatMessageRepository ChatMessageRepository,
         IChatMessageBroadcaster Broadcaster
     )
     {
         public SendChatMessageCommandHandler CreateHandler() =>
-            new(UserContext, NoteRepository, ChatMessageRepository, Broadcaster, TimeProvider.System);
+            new(UserContext, NoteRepository, AppUserRepository, ChatMessageRepository, Broadcaster, TimeProvider.System);
     }
 }

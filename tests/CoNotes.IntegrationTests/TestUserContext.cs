@@ -5,6 +5,9 @@ namespace IntegrationTests;
 public sealed class TestUserContext : IUserContext
 {
     public Guid AppUserId { get; set; }
+    public bool IsAdminUser { get; set; }
 
     public Task<Guid> GetAppUserIdAsync(CancellationToken cancellationToken) => Task.FromResult(AppUserId);
+
+    public bool IsAdmin() => IsAdminUser;
 }

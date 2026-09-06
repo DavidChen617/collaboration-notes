@@ -17,4 +17,7 @@ internal sealed class UserContext(
 
         return appUser.Id;
     }
+
+    public bool IsAdmin() =>
+        httpContextAccessor.HttpContext?.User.IsInRole("admin") ?? false;
 }

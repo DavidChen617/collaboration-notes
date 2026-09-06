@@ -1,6 +1,8 @@
+using CoNotes.Domain.Billing;
 using CoNotes.Domain.ChatMessages;
 using CoNotes.Domain.Notes;
 using CoNotes.Infrastructure.AppUsers;
+using CoNotes.Infrastructure.Billing;
 using CoNotes.Infrastructure.ChatMessages;
 using CoNotes.Infrastructure.ChatMessages.Providers;
 using CoNotes.Infrastructure.Identity;
@@ -22,6 +24,7 @@ public static class Dependency
             services.AddScoped<IAppUserRepository, AppUserRepository>();
             services.AddScoped<INoteRepository, NoteRepository>();
             services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
+            services.AddScoped<ILicenseCodeRepository, LicenseCodeRepository>();
             services.AddSingleton(new HttpClient());
             services.AddSingleton<GroqChatProvider>();
             services.AddSingleton<GeminiChatProvider>();

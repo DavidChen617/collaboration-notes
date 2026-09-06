@@ -13,6 +13,7 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     public async Task GivenOwner_WhenGeneratingOrRevokingShareLink_ThenSucceeds()
     {
         var owner = await CreateProvisionedClientAsync();
+        await SetPlanTierAsync(owner, "Pro");
         var noteId = await CreateNoteAsync(owner, "Title", "Content");
 
         var generateResponse = await owner.PostAsync($"{NotesEndpoint}/{noteId}/share-link", content: null);
@@ -34,6 +35,7 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
         // note-linking/notes-crud 既有的擁有權拒絕情境一律回 400(ErrorType.BadRequest), 不是 403——
         // 這裡沿用同一個慣例, 沒有另外引入 Forbidden/403, 避免同一種「不是擁有者」錯誤在 API 裡有兩種狀態碼。
         var owner = await CreateProvisionedClientAsync();
+        await SetPlanTierAsync(owner, "Pro");
         var collaborator = await CreateProvisionedClientAsync();
         var noteId = await CreateNoteAsync(owner, "Title", "Content");
         var shareToken = await GenerateShareLinkAsync(owner, noteId);
@@ -53,6 +55,7 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     public async Task GivenAuthenticatedUser_WhenOpeningValidShareLink_ThenAddedAsCollaborator()
     {
         var owner = await CreateProvisionedClientAsync();
+        await SetPlanTierAsync(owner, "Pro");
         var joiningUser = await CreateProvisionedClientAsync();
         var noteId = await CreateNoteAsync(owner, "Title", "Content");
         var shareToken = await GenerateShareLinkAsync(owner, noteId);
@@ -78,6 +81,7 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     public async Task GivenCollaborator_WhenListingOrReadingOrUpdatingNote_ThenSucceeds_AndUnrelatedUserIsRejected()
     {
         var owner = await CreateProvisionedClientAsync();
+        await SetPlanTierAsync(owner, "Pro");
         var collaborator = await CreateProvisionedClientAsync();
         var unrelatedUser = await CreateProvisionedClientAsync();
         var noteId = await CreateNoteAsync(owner, "Title", "Content");
@@ -114,6 +118,7 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     public async Task GivenOwner_WhenRemovingCollaborator_ThenCollaboratorCanNoLongerAccessTheNote()
     {
         var owner = await CreateProvisionedClientAsync();
+        await SetPlanTierAsync(owner, "Pro");
         var collaborator = await CreateProvisionedClientAsync();
         var noteId = await CreateNoteAsync(owner, "Title", "Content");
         var shareToken = await GenerateShareLinkAsync(owner, noteId);
@@ -131,6 +136,7 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     public async Task GivenOwner_WhenGettingCollaborationSettings_ThenReturnsShareTokenAndCollaborators()
     {
         var owner = await CreateProvisionedClientAsync();
+        await SetPlanTierAsync(owner, "Pro");
         var collaborator = await CreateProvisionedClientAsync();
         var noteId = await CreateNoteAsync(owner, "Title", "Content");
         var shareToken = await GenerateShareLinkAsync(owner, noteId);
@@ -150,6 +156,7 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     public async Task GivenCollaborator_WhenGettingCollaborationSettings_ThenIsRejected()
     {
         var owner = await CreateProvisionedClientAsync();
+        await SetPlanTierAsync(owner, "Pro");
         var collaborator = await CreateProvisionedClientAsync();
         var noteId = await CreateNoteAsync(owner, "Title", "Content");
         var shareToken = await GenerateShareLinkAsync(owner, noteId);
@@ -164,6 +171,7 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     public async Task GivenOwnerOrCollaborator_WhenSendingChatMessage_ThenMessageStoredAndReadable()
     {
         var owner = await CreateProvisionedClientAsync();
+        await SetPlanTierAsync(owner, "ProMax");
         var collaborator = await CreateProvisionedClientAsync();
         var noteId = await CreateNoteAsync(owner, "Title", "Content");
         var shareToken = await GenerateShareLinkAsync(owner, noteId);
@@ -212,6 +220,7 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     public async Task GivenMessageWithAiMention_WhenProcessed_ThenAiReplyEventuallyAppearsInChatRoom()
     {
         var owner = await CreateProvisionedClientAsync();
+        await SetPlanTierAsync(owner, "ProMax");
         var noteId = await CreateNoteAsync(owner, "Title", "Content");
 
         var sendResponse = await owner.PostAsJsonAsync(
@@ -272,6 +281,11 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
 
         return client;
     }
+
+    // subscription-billing 之後, 產生分享連結/使用聊天室分別要求擁有者訂閱等級 Pro 以上／ProMax;
+    // 這裡跳過真的 PayPal 付款流程, 直接用測試專用 endpoint 把等級設好(見 Program.cs 的說明)。
+    private static Task SetPlanTierAsync(HttpClient client, string planTier) =>
+        client.PostAsJsonAsync("/api/test/app-user/plan-tier", new { PlanTier = planTier });
 
     private static async Task<Guid> CreateNoteAsync(HttpClient client, string title, string content)
     {

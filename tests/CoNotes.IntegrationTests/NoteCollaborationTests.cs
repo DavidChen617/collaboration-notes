@@ -24,6 +24,7 @@ public sealed class NoteCollaborationTests(IntegrationTestWebAppFactory factory)
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
         var owner = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
+        owner.ApplyRedeemedPlanTier(PlanTier.Pro);
         var collaborator = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         var unrelatedUser = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(owner, CancellationToken.None);
