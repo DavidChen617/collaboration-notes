@@ -23,11 +23,11 @@ internal static class OpenTelemetryConfiguration
                     if (otlpEndpoint is not null)
                         tracing.AddOtlpExporter(o =>
                         {
-                            // gRPC (the SDK's default) needs an HTTP/2-over-plaintext handshake that
-                            // .NET's client refuses against a non-TLS collector; HTTP/protobuf is a
-                            // plain HTTP POST and has no such requirement, so it's the reliable choice
-                            // for the internal, non-TLS traffic this API always talks to SigNoz over
-                            // (edge TLS is terminated at Cloudflare/nginx, not by the collector itself).
+                            // gRPC(SDK 預設值)需要 HTTP/2-over-plaintext 的 handshake, 但 .NET
+                            // 的 client 在面對非 TLS 的 collector 時會拒絕這個 handshake; HTTP/protobuf
+                            // 只是單純的 HTTP POST, 沒有這個限制, 所以對這個 API 一律以非 TLS 方式
+                            // 跟 SigNoz 溝通的內部流量來說是可靠的選擇(edge TLS 是在
+                            // Cloudflare/nginx 終止的, 不是由 collector 本身處理)。
                             o.Protocol = OtlpExportProtocol.HttpProtobuf;
                             o.Endpoint = new Uri($"{otlpEndpoint}/v1/traces");
                         });

@@ -1,11 +1,11 @@
 import { mergeAttributes, Node } from '@tiptap/core';
 
 /**
- * An inline, atomic node representing a wikilink to another of the user's notes.
- * Stores the target note's ID (stable across renames) and renders its current title as
- * a `label` attribute - see note-linking design.md decision 2. Serializes as
- * `<span data-note-link="{noteId}">{label}</span>`, which is exactly the format
- * `NoteLinkContentParser` on the backend parses back out (see design.md decision 3).
+ * 代表連到使用者另一篇筆記的 wikilink, 是 inline、atomic 的 node。
+ * 儲存目標筆記的 ID(改標題後仍保持不變), 並用 `label` attribute
+ * 顯示它目前的標題 - 見 note-linking design.md decision 2。序列化後是
+ * `<span data-note-link="{noteId}">{label}</span>`, 這正是 backend 的
+ * `NoteLinkContentParser` 解析回來時所依據的格式(見 design.md decision 3)。
  */
 export const NoteLinkNode = Node.create({
   name: 'noteLink',

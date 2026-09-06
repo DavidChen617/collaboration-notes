@@ -17,17 +17,16 @@ internal static class AuthenticationConfiguration
                     options.Authority = configuration["Authentication:Authority"];
                     options.Audience = configuration["Authentication:Audience"];
                     options.MapInboundClaims = false;
-                    // Local dev commonly runs Keycloak over plain HTTP; production Authority
-                    // is HTTPS (behind nginx/Cloudflare), so only relax this in Development.
+                    // 本機開發通常用 plain HTTP 跑 Keycloak; production 的 Authority 是 HTTPS
+                    // (在 nginx/Cloudflare 後面), 所以只在 Development 放寬這項設定。
                     options.RequireHttpsMetadata = !environment.IsDevelopment();
 
                     options.Events = new JwtBearerEvents
                     {
-                        // The identity/authentication spec requires an AppUser to exist after the
-                        // *first* successful call to any protected endpoint, not just one specific
-                        // endpoint - this event fires for every request whose token validates, so
-                        // it's the one place to provision it uniformly. Idempotent: UpsertAppUserCommand
-                        // is a no-op once the AppUser already exists.
+                        // identity/authentication 的 spec 要求 AppUser 必須在「第一次」成功呼叫任何
+                        // 受保護的 endpoint 後就存在, 而不只是某個特定的 endpoint - 這個 event 會在每個
+                        // token 驗證通過的 request 觸發, 所以是統一 provision 的唯一位置。
+                        // 具備 idempotent 特性: AppUser 已存在時 UpsertAppUserCommand 就是 no-op。
                         OnTokenValidated = async context =>
                         {
                             var keycloakSub = context.Principal?.FindFirst("sub")?.Value;

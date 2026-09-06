@@ -67,11 +67,10 @@ public sealed class Note : AggregateRoot
     }
 
     /// <summary>
-    /// Replaces this note's outgoing wikilinks with <paramref name="requestedTargetNoteIds"/>, rejecting the
-    /// whole call if any requested target isn't in <paramref name="ownedTargetNoteIds"/> (the subset of
-    /// requested targets the caller has already confirmed belong to this note's owner). Raises
-    /// <see cref="NoteLinkedToDomainEvent"/>/<see cref="NoteLinkRemovedDomainEvent"/> for the diff against the
-    /// previously resolved set.
+    /// 用 <paramref name="requestedTargetNoteIds"/> 取代這篇筆記目前的所有 outgoing wikilink;
+    /// 只要有任何一個目標不在 <paramref name="ownedTargetNoteIds"/>(呼叫者已先確認屬於同一個 owner 的目標子集)中,
+    /// 整次呼叫就會被拒絕。會針對與先前已解析集合的差異, 觸發
+    /// <see cref="NoteLinkedToDomainEvent"/>/<see cref="NoteLinkRemovedDomainEvent"/>。
     /// </summary>
     public Result ResolveLinks(IReadOnlyCollection<Guid> requestedTargetNoteIds, IReadOnlySet<Guid> ownedTargetNoteIds)
     {

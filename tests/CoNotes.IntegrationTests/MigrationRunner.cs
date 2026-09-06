@@ -25,9 +25,9 @@ internal static class MigrationRunner
         await execScriptAsync(sb.ToString(), CancellationToken.None);
     }
 
-    // Test hosts run with the test assembly's output directory as the working
-    // directory, whose depth from the repo root varies by project; walking up
-    // to the .slnx avoids hard-coding a ".." count that breaks on any rename.
+    // Test host 是以 test assembly 輸出目錄作為 working directory 執行,
+    // 而它距離 repo root 的深度因專案而異; 往上找到 .slnx 可以避免寫死
+    // ".." 的層數, 不會因為改路徑就壞掉。
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(Directory.GetCurrentDirectory());

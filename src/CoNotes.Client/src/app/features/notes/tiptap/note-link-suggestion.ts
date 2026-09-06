@@ -11,9 +11,9 @@ export interface NoteLinkSuggestionConfig {
 }
 
 /**
- * Renders the autocomplete popup as a plain positioned <ul> - no component framework
- * binding, just DOM manipulation, consistent with this project not having any visual
- * design/styling yet (see note-linking design.md decision 2/tasks.md 5.2).
+ * 把自動完成的 popup 畫成單純用定位的 <ul> - 不綁 component framework,
+ * 只用 DOM 操作, 跟這個專案目前還沒有任何視覺設計/樣式的現況一致
+ * (見 note-linking design.md decision 2/tasks.md 5.2)。
  */
 function createRenderer() {
   let element: HTMLUListElement | null = null;

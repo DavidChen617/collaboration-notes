@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 namespace CoNotes.Application.Notes;
 
 /// <summary>
-/// Extracts the target note IDs referenced by wikilinks embedded in a note's HTML content.
-/// The frontend's link node renders as &lt;span data-note-link="{noteId}"&gt;{title}&lt;/span&gt;
-/// (see note-linking design.md decision 2); this is the one place that format is parsed back out.
+/// 解析筆記 HTML content 內嵌的 wikilink, 取出所有被連結的目標筆記 ID。
+/// 前端的 link node 會 render 成 &lt;span data-note-link="{noteId}"&gt;{title}&lt;/span&gt;
+/// (見 note-linking design.md decision 2), 這裡是唯一解析回這個格式的地方。
 /// </summary>
 internal static partial class NoteLinkContentParser
 {

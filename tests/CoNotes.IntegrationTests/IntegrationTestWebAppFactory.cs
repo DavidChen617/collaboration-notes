@@ -19,9 +19,9 @@ public sealed class IntegrationTestWebAppFactory : WebApplicationFactory<Program
     {
         builder.UseSetting("ConnectionStrings:DefaultConnection", _dbContainer.GetConnectionString());
 
-        // Query handlers resolve the current user via IUserContext, which normally reads the
-        // JWT-authenticated HttpContext. These tests dispatch queries directly through ISender
-        // without an HTTP request, so swap in a test double whose AppUserId can be set per test.
+        // Query handler 是透過 IUserContext 解析目前使用者, 正常情況下會讀取
+        // JWT-authenticated 的 HttpContext。這些測試是直接透過 ISender 發送 query,
+        // 沒有實際的 HTTP request, 所以換成一個可以逐測試設定 AppUserId 的 test double。
         builder.ConfigureTestServices(services =>
         {
             services.AddScoped<TestUserContext>();

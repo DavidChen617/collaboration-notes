@@ -35,11 +35,11 @@ public sealed class NoteEndpointTests(FunctionalTestWebAppFactory factory)
     [Fact]
     public async Task GivenFirstTimeUser_WhenCallingNotesWithoutEverProvisioningExplicitly_ThenAppUserIsAutoCreatedAndTheCallSucceeds()
     {
-        // Regression test: a real user's very first call after login used to be a random Notes
-        // endpoint, not the throwaway /api/test/app-user endpoint - AppUser provisioning must
-        // happen for any protected endpoint, not just that one. Deliberately does NOT call
-        // /api/test/app-user first (unlike CreateProvisionedClientAsync), to prove the
-        // OnTokenValidated hook provisions the AppUser on its own.
+        // Regression test: 真實使用者登入後的第一次呼叫, 過去曾經是隨機的某個 Notes
+        // endpoint, 而不是那個 throwaway 的 /api/test/app-user endpoint - AppUser provisioning
+        // 必須在任何受保護的 endpoint 上都會發生, 不只是那一個。這裡刻意不先呼叫
+        // /api/test/app-user(跟 CreateProvisionedClientAsync 不同), 用來證明
+        // OnTokenValidated hook 自己就能 provision AppUser。
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
             "Bearer", TestTokens.CreateToken(Guid.NewGuid().ToString()));

@@ -85,8 +85,8 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
 
     public async Task<Result> DeleteAsync(NoteAggregate note, CancellationToken ct)
     {
-        // note_links has `on delete cascade` on both source_note_id and target_note_id, so
-        // deleting the note row alone already removes every link where it was source or target.
+        // note_links 的 source_note_id 和 target_note_id 都設定了 `on delete cascade`,
+        // 所以刪除 note 這一列本身就會一併移除所有以它為 source 或 target 的連結。
         var cmd = new CommandDefinition(
             $"""
             delete from notes

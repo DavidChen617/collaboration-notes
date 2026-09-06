@@ -8,9 +8,9 @@ public interface INoteRepository
     Task<Result> DeleteAsync(Note note, CancellationToken ct);
 
     /// <summary>
-    /// Of <paramref name="candidateNoteIds"/>, returns the subset that exist and are owned by
-    /// <paramref name="ownerAppUserId"/> - used to validate wikilink targets before calling
-    /// <see cref="Note.ResolveLinks"/>.
+    /// 在 <paramref name="candidateNoteIds"/> 之中, 回傳確實存在且屬於
+    /// <paramref name="ownerAppUserId"/> 的子集 - 用於呼叫 <see cref="Note.ResolveLinks"/> 前
+    /// 驗證 wikilink 的目標。
     /// </summary>
     Task<IReadOnlySet<Guid>> FindOwnedNoteIdsAsync(Guid ownerAppUserId, IReadOnlyCollection<Guid> candidateNoteIds, CancellationToken ct);
 }
