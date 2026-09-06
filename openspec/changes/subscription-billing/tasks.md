@@ -17,7 +17,7 @@
 >
 > `SendChatMessageCommandHandler`/`GenerateShareLinkCommandHandler` 都額外注入 `IAppUserRepository`，查詢 `note.OwnerAppUserId` 對應的 `AppUser.PlanTier`；`IAppUserRepository` 也因此新增 `FindByIdAsync`／`UpdateAsync`（先前只有 `FindByKeycloakSubAsync`／`AddAsync`）。所有既有會呼叫這兩個 Command 的測試(`NoteCollaborationTests`／`ChatMessageTests`／`NoteCollabEndpointTests`／`NoteCollabHubReplicaTests`)都補上「先把擁有者的 `PlanTier` 設成 Pro/ProMax」的前置步驟；新增一個測試專用的 `POST /api/test/app-user/plan-tier` endpoint(跳過真的付款/兌換流程, 直接把目前使用者的等級設成指定值), 給 `NoteCollabEndpointTests`/`NoteCollabHubReplicaTests` 這類走真實 HTTP 的測試使用。
 
-- [x] 2.1 實作 `IssueLicenseCodeCommand` + Handler（由 PayPal webhook 觸發），單元測試（mock `ILicenseCodeRepository`）：`GivenOrderCompletedWebhookEvent_WhenHandled_ThenLicenseCodeIssuedForCorrectPlanTier`
+- [x] 2.1 實作 `IssueLicenseCodeCommand` + Handler（由確認付款完成的 Api endpoint 觸發，見 Section 3/4 的 webhook→導回confirm 決定），單元測試（mock `ILicenseCodeRepository`）：`GivenOrderCompletedWebhookEvent_WhenHandled_ThenLicenseCodeIssuedForCorrectPlanTier`（測試名稱沿用原本的命名，Handler 本身不知道也不在乎呼叫者是 webhook 還是導回確認，都只是「給定 PlanTier 跟 PayPalOrderId，發一組 code」)
 - [x] 2.2 實作 `RedeemLicenseCodeCommand` + Handler，單元測試：`GivenValidCode_WhenRedeemCommandHandled_ThenLicenseCodeMarkedRedeemed`、`GivenAlreadyRedeemedCode_WhenRedeemCommandHandled_ThenRejected`（額外加了 `GivenConcurrentRedemptionLosesTheRace_WhenRedeemCommandHandled_ThenRejected`；真正的原子判斷在 Infrastructure 層的條件式 UPDATE，這裡驗證 Handler 對「持久化失敗」的反應)
 - [x] 2.3 實作 `LicenseCodeRedeemed` 的跨 Context Event Handler（Identity context 訂閱，更新 `AppUser.PlanTier`），單元測試：`GivenLicenseCodeRedeemedEvent_WhenHandled_ThenAppUserPlanTierUpdated`（見上方 `UnitOfWork` bug 說明；另外用 Testcontainers 整合測試 `GivenRedeemedCode_WhenAppUserReloadedFromDb_ThenPlanTierWasUpdatedByTheCrossContextEventHandler` 對真的 Postgres 驗證整條「Redeem → commit → 事件發布 → 寫回 AppUser」的流程真的成功)
 - [x] 2.4 單元測試（關鍵不變條件）：`GivenRedeemedCode_WhenCorrespondingPayPalPaymentLaterRefundedOrDisputed_ThenAppUserPlanTierRemainsUnchanged`（驗證：因為系統只在兌換當下分派一次 Command，PayPal 後續狀態變化不會分派任何 Command，`PlanTier` 自然不受影響——`RedeemLicenseCodeCommandHandlerTests` 的三個測試合起來就是這個不變條件：成功兌換只發生一次事件、已兌換的 code 不會再觸發任何動作、併發下輸掉競態的請求也不會)
@@ -28,32 +28,35 @@
 
 ## 3. Infrastructure
 
-- [ ] 3.1 撰寫 migration 為 `AppUser` 新增 `PlanTier` 欄位（`Free`/`Pro`/`ProMax`，預設 `Free`），驗證 down 可正確移除
-- [ ] 3.2 撰寫 migration 新增 `LicenseCode` table，驗證 down 可正確移除
-- [ ] 3.3 實作 `ILicenseCodeRepository` 的 Dapper 版本，Testcontainers 整合測試：`GivenPersistedCode_WhenRedeemedConcurrentlyByTwoRequests_ThenOnlyOneSucceeds`
-- [ ] 3.4 實作 PayPal webhook 簽章驗證與事件類型判斷，只把「付款完成」（`PAYMENT.CAPTURE.COMPLETED`）事件轉換成 `IssueLicenseCodeCommand`，其餘事件類型直接忽略；整合測試：`GivenNonCaptureCompletedWebhookEventType_WhenReceived_ThenIgnoredAndNoLicenseCodeIssued`
+> **不用 webhook**：原本規劃 PayPal 付款完成後由 webhook 通知後端，後來發現這台開發機沒有對外可達的網址，PayPal 伺服器無法真的把 webhook 送過來——跟你確認過，改成「使用者從 PayPal 核准頁導回後，前端呼叫我們自己的確認 endpoint，後端直接呼叫 PayPal 的 Capture API、檢查回傳狀態是否為 `COMPLETED`」，不需要對外可達的網址，也能在本機完整測試（見 design.md 決定 2）。3.4 因此從「webhook 簽章驗證」改成「PayPal API client」。
+
+- [x] 3.1 撰寫 migration 為 `AppUser` 新增 `PlanTier` 欄位（`Free`/`Pro`/`ProMax`，預設 `Free`），驗證 down 可正確移除
+- [x] 3.2 撰寫 migration 新增 `LicenseCode` table，驗證 down 可正確移除
+- [x] 3.3 實作 `ILicenseCodeRepository` 的 Dapper 版本，Testcontainers 整合測試：`GivenPersistedCode_WhenRedeemedConcurrentlyByTwoRequests_ThenOnlyOneSucceeds`
+- [ ] 3.4 實作 `IPayPalClient`（OAuth2 client-credentials 換 access token、建立訂單、capture 訂單），呼叫真的 PayPal Sandbox REST API 驗證：建立訂單成功並取得可核准的網址
 - [ ] 3.5 架構測試：驗證 `CoNotes.Domain` 不參考 `CoNotes.Infrastructure`／`CoNotes.Api`
 
 ## 4. Api
 
-> PayPal client id/secret 走 configuration（`Ai:Groq`／`Ai:Gemini` 那種模式），本機沒設定時 4.1/4.2 無法真的打通 PayPal sandbox，架構仍需完整——等你拿到真的 sandbox app 憑證後再實際驗證。
-
-- [ ] 4.1 新增建立 PayPal 訂單（Orders API）checkout 的 endpoint（sandbox）
-- [ ] 4.2 新增接收 PayPal webhook 的 endpoint（訂閱 `PAYMENT.CAPTURE.COMPLETED`）
+- [ ] 4.1 新增建立 PayPal 訂單（Orders API）的 endpoint（sandbox），回傳使用者要導去核准的 PayPal 網址
+- [ ] 4.2 新增確認付款完成的 endpoint（使用者從 PayPal 核准頁導回後，前端呼叫這個 endpoint 帶著 PayPal Order Id；後端呼叫 Capture API，狀態為 `COMPLETED` 才觸發 `IssueLicenseCodeCommand`，否則回覆失敗、不產生 code）
 - [ ] 4.3 新增兌換 license code 的 endpoint，Functional Test：`GivenValidUnusedCode_WhenRedeemEndpointCalled_ThenPlanTierUpdatedInResponse`、`GivenAlreadyRedeemedCode_WhenRedeemEndpointCalled_ThenReturnsRejection`
 - [ ] 4.4 新增管理者撤銷等級的 endpoint（`RequireAuthorization` 要求 `admin` realm role），Functional Test：`GivenAdminUser_WhenRevokeEndpointCalled_ThenPlanTierSetToFree`、`GivenNonAdminUser_WhenRevokeEndpointCalled_ThenReturns403`
-- [ ] 4.5 Functional Test（端對端）：`GivenPayPalPaymentCompletedWebhook_WhenFollowedByRedeem_ThenOwnerCanGenerateShareLinkAndUseAiChatPerTier`
+- [ ] 4.5 Functional/整合測試（端對端）：`GivenPayPalOrderCreatedAndCaptured_WhenFollowedByRedeem_ThenOwnerCanGenerateShareLinkAndUseAiChatPerTier`（用真的 PayPal Sandbox REST API 建立訂單；核准這一步需要 PayPal sandbox buyer 帳號，見 6.0/6.3 說明）
 
 ## 5. 前端
 
-- [ ] 5.1 新增訂閱方案選擇畫面，串接 PayPal checkout 建立 endpoint
-- [ ] 5.2 新增輸入 license code 兌換的畫面，驗證兌換成功/失敗（已使用過）兩種情況都有清楚的提示
-- [ ] 5.3 在分享連結、聊天室相關 UI，針對等級不足的情況顯示清楚的提示（而非讓功能默默失效）
+- [ ] 5.1 新增訂閱方案選擇畫面，呼叫建立訂單 endpoint 後導向 PayPal 核准網址
+- [ ] 5.2 新增使用者從 PayPal 核准頁導回後的確認畫面，呼叫確認付款完成 endpoint，顯示產生的 license code
+- [ ] 5.3 新增輸入 license code 兌換的畫面，驗證兌換成功/失敗（已使用過）兩種情況都有清楚的提示
+- [ ] 5.4 在分享連結、聊天室相關 UI，針對等級不足的情況顯示清楚的提示（而非讓功能默默失效）
 
 ## 6. 端對端驗證
 
-> 6.3 需要真的 PayPal sandbox app 憑證才能實測；憑證到位前用 6.1/6.2 的自動化測試 + 手動觸發一個假的 webhook payload 驗證除了「真的向 PayPal 下單」以外的完整流程。
+> 6.3 的「使用者在 PayPal 頁面核准付款」這一步需要一組 PayPal sandbox **buyer(測試買家)帳號**——這跟目前已經提供的 sandbox app 用戶端 id/密鑰(用來讓後端呼叫 PayPal API)是不同的東西，buyer 帳號是拿來登入 PayPal 核准頁面用的個人測試帳號，通常在 PayPal Developer Dashboard 的 sandbox 帳號清單裡就有預設的一組。拿到這組帳密後可以用 Playwright 完整跑過核准頁的登入與按下核准按鈕，跟 Keycloak 登入走的是同一套自動化方式。
+
+- [ ] 6.0 取得一組 PayPal sandbox buyer 帳號（email/密碼），供 Playwright 自動化核准流程使用
 
 - [ ] 6.1 逐一驗證 `specs/subscription-billing/spec.md` 的五個 Requirement 全數通過
 - [ ] 6.2 逐一驗證 `specs/collab-editing/spec.md`、`specs/ai-chat/spec.md` 這次修改的部分全數通過
-- [ ] 6.3 完整跑一次流程：PayPal sandbox 付款購買 Pro → webhook 觸發產生 code → 兌換 → 產生分享連結成功；再付款購買 ProMax → 兌換 → 聊天室可用（需要真的 PayPal sandbox 憑證，見上方註記）
+- [ ] 6.3 完整跑一次流程：PayPal sandbox 付款購買 Pro → 核准並導回確認 → 產生 code → 兌換 → 產生分享連結成功；再付款購買 ProMax → 兌換 → 聊天室可用（需要手動核准，見上方註記）

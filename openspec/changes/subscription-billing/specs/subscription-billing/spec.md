@@ -7,7 +7,7 @@
 ### Requirement: 使用者透過 PayPal 付款取得對應等級的 license code
 使用者透過 PayPal 完成一筆一次性付款時，系統 SHALL 產生一組對應該付款等級、尚未使用過的 license code。
 
-**Path**: Command（`IssueLicenseCodeCommand`，由 PayPal webhook 觸發，發出 `LicenseCodeIssued`）
+**Path**: Command（`IssueLicenseCodeCommand`，由使用者從 PayPal 核准頁導回後、後端呼叫 PayPal Capture API 確認付款狀態為 `COMPLETED` 觸發，發出 `LicenseCodeIssued`；不使用 webhook——見 design.md 決定 2b）
 
 #### Scenario: 付款完成後產生 license code
 - **WHEN** 使用者透過 PayPal 完成一筆 Pro 或 ProMax 等級的一次性付款
@@ -34,7 +34,7 @@
 ### Requirement: 已兌換生效的訂閱等級不隨 PayPal 後續狀態自動變動
 使用者兌換 license code 取得的訂閱等級，SHALL NOT 因為對應 PayPal 付款後續被退款或申訴爭議而被系統自動調整。
 
-**Path**: Command（不變條件——描述的是撤銷/變更等級這個 Command 路徑*不會*被觸發，而非一個獨立的讀寫動作；系統只監聽「付款完成」事件，PayPal 後續事件完全不會分派任何 Command）
+**Path**: Command（不變條件——描述的是撤銷/變更等級這個 Command 路徑*不會*被觸發，而非一個獨立的讀寫動作；系統只在使用者導回、確認付款完成的當下觸發一次，之後不追蹤這筆 PayPal 付款的任何後續狀態，自然不會分派任何 Command）
 
 #### Scenario: PayPal 付款後續狀態變化不影響已兌換的等級
 - **WHEN** 使用者已經兌換 code 取得 Pro 或 ProMax 等級之後，其原本對應的 PayPal 付款被退款或申訴爭議
