@@ -3,10 +3,14 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from '../../core/app-config';
-import { NoteDetail, NoteSummary } from './note.model';
+import { NoteDetail, NoteGraph, NoteSearchResult, NoteSummary } from './note.model';
 
 interface ListNotesResponse {
   notes: NoteSummary[];
+}
+
+interface SearchNotesResponse {
+  notes: NoteSearchResult[];
 }
 
 interface CreateNoteResponse {
@@ -42,5 +46,13 @@ export class NoteService {
 
   delete(noteId: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${noteId}`);
+  }
+
+  searchByTitle(keyword: string): Observable<SearchNotesResponse> {
+    return this.http.get<SearchNotesResponse>(`${this.baseUrl}/search`, { params: { keyword } });
+  }
+
+  getGraph(): Observable<NoteGraph> {
+    return this.http.get<NoteGraph>(`${this.baseUrl}/graph`);
   }
 }

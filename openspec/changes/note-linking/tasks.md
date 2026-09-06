@@ -31,17 +31,23 @@
 
 ## 5. 前端編輯器
 
-- [ ] 5.1 導入 Tiptap 取代目前的筆記編輯器，驗證既有的筆記內容仍可正常載入與編輯
-- [ ] 5.2 實作以 `[[` 觸發的自動完成選單，串接標題搜尋 API，驗證輸入 `[[` 後能看到自己的筆記清單；若雙字元觸發無法乾淨支援，改用單一 `[` 觸發並記錄此決定
-- [ ] 5.3 實作選定筆記後插入連結節點，畫面顯示標題、底層存識別碼，驗證儲存後重新載入內容，連結顯示正確
-- [ ] 5.4 驗證被連結筆記標題更改後，重新開啟含有該連結的筆記，顯示的標題會自動更新
+> 用 Tiptap `Editor` 手動掛載在 `#editorHost` div（不是 Angular 表單元件），存檔時取 `editor.getHTML()` 塞進既有的 create/update API 呼叫。雙字元 `[[` 觸發在 `@tiptap/suggestion` 目前版本（3.31.3）的 `char` 選項只支援單一字元（檢查過套件 `.d.ts`），確認改用單一 `[` 觸發，如 design.md/tasks.md 原先預留的決定。
+
+- [x] 5.1 導入 Tiptap 取代目前的筆記編輯器，驗證既有的筆記內容仍可正常載入與編輯（`note-editor.component.ts` 用 `Editor` + `StarterKit`；Playwright 實測建立、重新載入、編輯標題皆正常）
+- [x] 5.2 實作以 `[` 觸發的自動完成選單，串接標題搜尋 API，驗證輸入 `[` 後能看到自己的筆記清單（`NoteLinkSuggestion` extension 包 `@tiptap/suggestion`，`searchNotes` 呼叫 `GET /notes/search`；Playwright 實測 popup 內容包含正確筆記標題）
+- [x] 5.3 實作選定筆記後插入連結節點，畫面顯示標題、底層存識別碼，驗證儲存後重新載入內容，連結顯示正確（`NoteLinkNode` 序列化為 `<span data-note-link="{noteId}">{label}</span>`；Playwright 實測插入、儲存、重新開啟後 HTML 內容一致）
+- [x] 5.4 驗證被連結筆記標題更改後，重新開啟含有該連結的筆記，顯示的標題會自動更新（`note-editor.component.ts` 的 `refreshLinkLabels()`：載入內容後呼叫 `GET /notes/graph` 取得所有自己筆記目前的標題，用 `tr.setNodeAttribute` 更新過期的 `label`；Playwright 實測重新命名目標筆記後，來源筆記重新開啟顯示新標題）
 
 ## 6. 前端關係圖
 
-- [ ] 6.1 導入 Cytoscape.js，建立關係圖檢視畫面，串接關係圖資料 API
-- [ ] 6.2 驗證畫面正確顯示所有筆記節點與連結邊，且點選節點可以跳轉到對應的筆記編輯畫面
+- [x] 6.1 導入 Cytoscape.js，建立關係圖檢視畫面，串接關係圖資料 API（`note-graph.component.ts`，路由 `/notes/graph`，用 `cose` layout）
+- [x] 6.2 驗證畫面正確顯示所有筆記節點與連結邊，且點選節點可以跳轉到對應的筆記編輯畫面（Playwright 實測 canvas 渲染成功、點擊節點後導向 `/notes/{noteId}/edit`）
+
+> 5.1/6.1 皆用 Angular route 的 `loadComponent` 做 lazy load（不是直接 `component:`），因為 Tiptap／Cytoscape 一次載入會讓 initial bundle 超過 `angular.json` 設定的 1MB error 門檻；拆成 lazy chunk 後 initial bundle 回到 ~280KB，兩個功能各自的內容只在真的造訪該路由時才下載。
 
 ## 7. 端對端驗證
 
-- [ ] 7.1 逐一驗證 `specs/note-linking/spec.md` 的五個 Requirement 全數通過
-- [ ] 7.2 建立多篇互相連結的筆記，刪除其中一篇後確認關係圖與相關連結都正確更新
+- [x] 7.1 逐一驗證 `specs/note-linking/spec.md` 的五個 Requirement 全數通過（Playwright 覆蓋：連結解析與擁有權檢查、自動完成、連結顯示與標題同步、關係圖顯示與導覽）
+- [x] 7.2 建立多篇互相連結的筆記，刪除其中一篇後確認關係圖與相關連結都正確更新（建立兩篇筆記都連到同一篇目標筆記，刪除目標筆記後，關係圖頁面仍正常載入不噴錯，且筆記清單確認目標筆記已消失——DB 層的 `on delete cascade` 已在 3.3 的整合測試驗證過連結列會一併清除）
+
+> 過程中發現並修好兩個跟本次改動無關、但擋住驗證的環境問題（非程式碼 bug）：(1) 本機 `dotnet run` 用了舊的編譯結果（同一個 process 從很早之前就沒重啟，沒反映後續程式碼變更），改成明確帶入 `infra/README.md` 記載的環境變數重新啟動即可；(2) 本機 docker-compose 的 `migrate` container 是在 `note_links` migration 檔案存在之前執行的一次性 job，之後沒有再跑過，導致 `note_links` table 不存在——手動重新執行 `docker compose run --rm migrate` 補上。
