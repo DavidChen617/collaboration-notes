@@ -1,3 +1,4 @@
+using CoNotes.Api.Extensions;
 using CoNotes.Application.Notes.Queries.Get;
 
 namespace CoNotes.Api.Endpoints.v1.Notes;
@@ -11,7 +12,9 @@ internal sealed class GetNoteEndpoint : IEndpoint<NoteGroupEndpoint>
             .WithName("GetNote")
             .WithSummary("取得單筆筆記")
             .WithDescription("依 noteId 取得單筆筆記, 如果使用者不是擁有者則會取得失敗")
-            .Produces<GetNoteDto>();
+            .Produces<GetNoteDto>()
+            .ProduceProblem(StatusCodes.Status404NotFound, "筆記找不到")
+            .ProduceProblem(StatusCodes.Status400BadRequest, "使用者沒有權限檢視這篇筆記");
     }
 
     private static async Task<IResult> HandleAsync([FromRoute] Guid noteId, ISender sender, CancellationToken ct)
