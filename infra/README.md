@@ -15,6 +15,37 @@
 8. **Cloudflare Tunnel**（`infra/cloudflared/config.yml`）：把單一目標指向 ingress-nginx controller 的 Service（這一步在 repo 之外，透過 Cloudflare Zero Trust 操作)。
 9. **ArgoCD**（`infra/argocd/application.yaml`）：指向 `infra/k8s`，`directory.recurse: true` 讓它能找到巢狀資料夾裡的 manifest。
 
+## 密鑰管理（PayPal／AI provider）
+
+`cicd-deployment` change 的決定：這類第三方密鑰完全不進 CI/CD、也不進 git（見
+`openspec/changes/cicd-deployment/design.md` 決定 5）。維護方式是伺服器端一份
+`.env` 檔案，手動執行 `scripts/apply-secrets.sh` 套用成 k8s Secret；API 的
+Deployment 透過 `envFrom: secretRef` 把裡面每個 key 直接注入成環境變數（見
+`infra/k8s/api/deployment.yaml`）。
+
+- **`.env` 放在哪裡**：叢集任一台能操作 `kubectl` 的節點上，路徑固定用
+  `/etc/conotes/secrets.env`（`apply-secrets.sh` 的預設路徑，也可以在執行時
+  另外指定路徑當第一個參數）。這份檔案不進 git，只存在伺服器端。
+- **需要哪些變數**：對應 `CoNotes.Api` 實際會讀的 configuration key，把 `:`
+  換成 `__`：
+  ```
+  PayPal__ClientId=...
+  PayPal__ClientSecret=...
+  PayPal__WebhookId=...
+  Ai__Groq__ApiKey=...
+  Ai__Gemini__ApiKey=...
+  ```
+  這些 provider 各自允許值是空字串／缺這個 key——程式碼會把對應的 provider
+  當作「不可用」跳過(AI provider chain)或讓那個功能回傳明確的失敗訊息(PayPal)，
+  不會讓整個 API 啟動失敗，方便在還沒申請到某個 provider 的憑證時先部署其他部分。
+- **什麼時候要重新執行**：第一次建立叢集時、或任何一組密鑰輪替/更新時。指令：
+  ```bash
+  ./scripts/apply-secrets.sh /etc/conotes/secrets.env
+  ```
+  執行後 Secret 內容更新，但**不會**自動讓 API pod 重新啟動去讀新的環境變數
+  （k8s 的 Secret 更新不會觸發已存在 pod 的 env 重新載入）——需要額外
+  `kubectl rollout restart deployment/api -n collaboration-notes`。
+
 ## 已知限制
 
 - **單副本 Keycloak**：沒有用官方 Operator，也沒有多副本；它是單點故障，掛掉之後沒人能登入（既有的 access token 在過期前仍可正常呼叫 API）。

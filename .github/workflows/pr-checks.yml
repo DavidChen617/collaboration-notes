@@ -1,0 +1,58 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  dotnet-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore CoNotes.slnx
+
+      - name: Build
+        run: dotnet build CoNotes.slnx --no-restore
+
+      # Integration/Functional 測試用 Testcontainers 起真的 Postgres, GitHub-hosted
+      # ubuntu-latest runner 內建 Docker daemon, 不需要額外設定。
+      #
+      # PayPalClientTests/BillingEndpointTests 有幾個測試打真的 PayPal sandbox API,
+      # 跟其他需要真的外部依賴的測試是同樣的慣例(沒準備好就失敗, 不靜默略過), 所以
+      # 這裡也要注入真的 sandbox 憑證, 見 repo Settings > Secrets and variables > Actions。
+      - name: Test (Unit/Integration/Functional/Architecture)
+        env:
+          PayPal__ClientId: ${{ secrets.PAYPAL_CLIENT_ID }}
+          PayPal__ClientSecret: ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PayPal__WebhookId: ${{ secrets.PAYPAL_WEBHOOK_ID }}
+        run: dotnet test CoNotes.slnx --no-build
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/CoNotes.Client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable corepack (pinned pnpm version from package.json)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Build
+        run: pnpm build

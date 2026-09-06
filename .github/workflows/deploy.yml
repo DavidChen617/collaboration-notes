@@ -1,0 +1,136 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    # 這個 workflow 自己會 commit 回 infra/k8s 更新 image tag——不排除的話會造成
+    # build -> commit -> 觸發 build -> commit -> ... 的無窮迴圈(見 design.md 決定 2)。
+    paths-ignore:
+      - 'infra/k8s/**'
+
+permissions:
+  contents: write
+  packages: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/conotes-api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore CoNotes.slnx
+
+      - name: Build
+        run: dotnet build CoNotes.slnx --no-restore
+
+      # PayPalClientTests/BillingEndpointTests 打真的 PayPal sandbox API, 需要注入
+      # 真的 sandbox 憑證(見 repo Settings > Secrets and variables > Actions), 跟
+      # pr-checks.yml 的理由一樣。
+      - name: Test (Unit/Integration/Functional/Architecture)
+        env:
+          PayPal__ClientId: ${{ secrets.PAYPAL_CLIENT_ID }}
+          PayPal__ClientSecret: ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PayPal__WebhookId: ${{ secrets.PAYPAL_WEBHOOK_ID }}
+        run: dotnet test CoNotes.slnx --no-build
+
+  build-and-push-api:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.tag.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        run: echo "value=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/CoNotes.Api/Dockerfile
+          push: true
+          # 用 git SHA 當 tag, 不是 latest——infra/k8s 的 manifest 內容因此直接對應到
+          # 一個確切的 commit, 出問題時能明確追查是哪個版本(見 design.md 決定 3)。
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  update-manifest:
+    needs: build-and-push-api
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 用內建 GITHUB_TOKEN 才有權限 commit 回 main, 需要 repo 設定開啟
+          # Actions 的 "Read and write permissions"(見 design.md Risks)。
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update API image tag
+        run: |
+          sed -i "s|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push-api.outputs.image-tag }}|" \
+            infra/k8s/api/deployment.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add infra/k8s/api/deployment.yaml
+          if git diff --cached --quiet; then
+            echo "No change to commit"
+          else
+            git commit -m "chore(deploy): update api image to ${{ needs.build-and-push-api.outputs.image-tag }}"
+            git push
+          fi
+
+  deploy-pages:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: src/CoNotes.Client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable corepack (pinned pnpm version from package.json)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build --base-href /${{ github.event.repository.name }}/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: src/CoNotes.Client/dist/CoNotes.Client/browser
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
