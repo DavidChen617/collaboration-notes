@@ -20,7 +20,7 @@ public sealed class NoteLinkTests(IntegrationTestWebAppFactory factory)
         var appUserRepository = scope.ServiceProvider.GetRequiredService<IAppUserRepository>();
         var noteRepository = scope.ServiceProvider.GetRequiredService<INoteRepository>();
 
-        var owner = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
+        var owner = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(owner, CancellationToken.None);
 
         var target = NoteAggregate.Create(owner.Id, "Target", "Content", DateTime.UtcNow);
@@ -29,7 +29,7 @@ public sealed class NoteLinkTests(IntegrationTestWebAppFactory factory)
         var source = NoteAggregate.Create(owner.Id, "Source", "Content", DateTime.UtcNow);
         await noteRepository.AddAsync(source, CancellationToken.None);
 
-        source.Update(owner.Id, "Source", $"""<p>See <span data-note-link="{target.Id}">Target</span></p>""");
+        source.Update(owner.Id, "Source", $"""<p>See <span data-note-link="{target.Id}">Target</span></p>""", DateTime.UtcNow);
         source.ResolveLinks([target.Id], new HashSet<Guid> { target.Id });
         await noteRepository.UpdateAsync(source, CancellationToken.None);
 
@@ -46,7 +46,7 @@ public sealed class NoteLinkTests(IntegrationTestWebAppFactory factory)
         var appUserRepository = scope.ServiceProvider.GetRequiredService<IAppUserRepository>();
         var noteRepository = scope.ServiceProvider.GetRequiredService<INoteRepository>();
 
-        var owner = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
+        var owner = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(owner, CancellationToken.None);
 
         var target = NoteAggregate.Create(owner.Id, "Target", "Content", DateTime.UtcNow);
@@ -74,8 +74,8 @@ public sealed class NoteLinkTests(IntegrationTestWebAppFactory factory)
         var userContext = scope.ServiceProvider.GetRequiredService<TestUserContext>();
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
-        var owner = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
-        var otherUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
+        var owner = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
+        var otherUser = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(owner, CancellationToken.None);
         await appUserRepository.AddAsync(otherUser, CancellationToken.None);
 
@@ -101,8 +101,8 @@ public sealed class NoteLinkTests(IntegrationTestWebAppFactory factory)
         var userContext = scope.ServiceProvider.GetRequiredService<TestUserContext>();
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
-        var owner = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
-        var otherUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
+        var owner = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
+        var otherUser = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(owner, CancellationToken.None);
         await appUserRepository.AddAsync(otherUser, CancellationToken.None);
 

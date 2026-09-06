@@ -18,8 +18,8 @@ public sealed class NoteQueryOwnershipTests(IntegrationTestWebAppFactory factory
         var userContext = scope.ServiceProvider.GetRequiredService<TestUserContext>();
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
-        var owner = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
-        var otherUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
+        var owner = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
+        var otherUser = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(owner, CancellationToken.None);
         await appUserRepository.AddAsync(otherUser, CancellationToken.None);
 
@@ -45,8 +45,8 @@ public sealed class NoteQueryOwnershipTests(IntegrationTestWebAppFactory factory
         var userContext = scope.ServiceProvider.GetRequiredService<TestUserContext>();
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
-        var owner = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
-        var otherUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
+        var owner = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
+        var otherUser = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(owner, CancellationToken.None);
         await appUserRepository.AddAsync(otherUser, CancellationToken.None);
 

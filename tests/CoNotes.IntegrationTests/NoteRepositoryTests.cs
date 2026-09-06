@@ -15,7 +15,7 @@ public sealed class NoteRepositoryTests(IntegrationTestWebAppFactory factory)
         var appUserRepository = scope.ServiceProvider.GetRequiredService<IAppUserRepository>();
         var noteRepository = scope.ServiceProvider.GetRequiredService<INoteRepository>();
 
-        var appUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
+        var appUser = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(appUser, CancellationToken.None);
 
         var note = NoteAggregate.Create(appUser.Id, "Title", "Content", DateTime.UtcNow);
@@ -36,7 +36,7 @@ public sealed class NoteRepositoryTests(IntegrationTestWebAppFactory factory)
         var appUserRepository = scope.ServiceProvider.GetRequiredService<IAppUserRepository>();
         var noteRepository = scope.ServiceProvider.GetRequiredService<INoteRepository>();
 
-        var appUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
+        var appUser = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(appUser, CancellationToken.None);
 
         var note = NoteAggregate.Create(appUser.Id, "Title", "Content", DateTime.UtcNow);
@@ -59,7 +59,7 @@ public sealed class NoteRepositoryTests(IntegrationTestWebAppFactory factory)
         var appUserRepository = scope.ServiceProvider.GetRequiredService<IAppUserRepository>();
         var noteRepository = scope.ServiceProvider.GetRequiredService<INoteRepository>();
 
-        var appUser = AppUser.Create(Guid.NewGuid(, DateTime.UtcNow).ToString());
+        var appUser = AppUser.Create(Guid.NewGuid().ToString(), DateTime.UtcNow);
         await appUserRepository.AddAsync(appUser, CancellationToken.None);
 
         var note = NoteAggregate.Create(appUser.Id, "Title", "Content", DateTime.UtcNow);
