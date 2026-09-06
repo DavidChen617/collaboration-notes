@@ -20,7 +20,9 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/conotes-api
+  # ghcr.io 的 repository 名稱一定要小寫,github.repository_owner 會是帳號原本的大小寫
+  # (DavidChen617),GitHub Actions 表達式沒有內建 toLower(),這裡就直接寫死小寫值。
+  IMAGE_NAME: davidchen617/conotes-api
 
 jobs:
   test:
