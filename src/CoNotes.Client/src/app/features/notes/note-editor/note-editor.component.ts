@@ -8,6 +8,7 @@ import { firstValueFrom } from 'rxjs';
 import * as Y from 'yjs';
 
 import { NoteCollabService, NoteCollabSession, fromBase64 } from '../note-collab.service';
+import { NoteChatComponent } from '../note-chat/note-chat.component';
 import { NoteCollaboration } from '../note.model';
 import { NoteService } from '../note.service';
 import { NoteLinkNode } from '../tiptap/note-link-node';
@@ -15,7 +16,7 @@ import { NoteLinkSuggestion } from '../tiptap/note-link-suggestion';
 
 @Component({
   selector: 'app-note-editor',
-  imports: [FormsModule],
+  imports: [FormsModule, NoteChatComponent],
   template: `
     <h1>{{ noteId() ? '編輯筆記' : '建立新筆記' }}</h1>
 
@@ -76,6 +77,10 @@ import { NoteLinkSuggestion } from '../tiptap/note-link-suggestion';
         }
         <div #historyEditorHost [hidden]="!replayedAt()"></div>
       </section>
+    }
+
+    @if (noteId(); as id) {
+      <app-note-chat [noteId]="id" />
     }
   `,
   styles: [],

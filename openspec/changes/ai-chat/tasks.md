@@ -29,11 +29,13 @@
 
 ## 5. 前端聊天室 UI
 
-- [ ] 5.1 在筆記編輯畫面右下角新增聊天室面板，串接 ChatHub 與歷史訊息 API
-- [ ] 5.2 驗證多個使用者同時在同一篇筆記的聊天室裡，彼此的訊息即時同步
-- [ ] 5.3 驗證輸入含 `@AI` 的訊息後，畫面上會出現 AI 的回覆訊息
+> 新增 `NoteChatComponent`（`features/notes/note-chat/note-chat.component.ts`），固定定位在畫面右下角；掛載時（`ngOnChanges` 偵測 `noteId` 變化)先呼叫既有的 `ChatService.getHistory(noteId)` 灌入歷史訊息，再呼叫 `ChatService.connect(noteId, onMessage)` 加入 ChatHub 的 SignalR 群組並訂閱 `ReceiveMessage`；因為 `ChatMessageBroadcaster` 是對整個 Group 廣播（不是 `OthersInGroup`），自己送出的訊息也會透過同一個 `ReceiveMessage` 事件收到，所以畫面上不用另外手動 append 一次，避免重複。掛在 `NoteEditorComponent`：`@if (noteId(); as id) { <app-note-chat [noteId]="id" /> }`，只有既有筆記（有 `noteId`）才顯示，新筆記建立前不顯示。
+
+- [x] 5.1 在筆記編輯畫面右下角新增聊天室面板，串接 ChatHub 與歷史訊息 API（`tsc --noEmit` 與 `ng build` 皆通過，`note-editor-component` lazy chunk 613KB→614KB，尺寸增加符合預期）
+- [x] 5.2 驗證多個使用者同時在同一篇筆記的聊天室裡，彼此的訊息即時同步（用兩個臨時 Keycloak 使用者、兩個獨立 Playwright Chromium context 實測完整真實流程：登入 → 建立筆記 → 產生分享連結 → 第二個使用者透過連結加入 → 雙方都看得到聊天室面板 → A 傳送含當次唯一字串的訊息、B 在 10 秒內即時收到；反向 B 傳送、A 也即時收到。過程中發現本機 `dotnet run` 的 API process 是舊版 build（在這次 chat 後端 commit 之前就啟動的），聊天相關的兩個 Endpoint 因此回 404，重啟 API process 後恢復正常——這是本機測試環境的問題，不是程式碼問題)
+- [x] 5.3 驗證輸入含 `@AI` 的訊息後，畫面上會出現 AI 的回覆訊息（同一組 Playwright 實測：A 傳送含獨立 `@AI` 字詞的訊息，B 也即時看到這則訊息；接著雙方畫面都在數秒內出現一則 `.ai-reply` 樣式的回覆訊息，內容是「AI 目前無法回應，請稍後再試。」——因為本機沒有設定任何 `Ai:Groq:ApiKey`／`Ai:Gemini:ApiKey`，這正好驗證了 spec 的「所有 provider 都失敗時明確告知使用者」這條 Requirement；沒有真的驗證到「AI 給出有意義回覆」這個情境，因為那需要真實的 provider API key，這次的驗證範圍就是走到 provider chain 全部失敗、回退訊息成功出現並廣播給所有參與者為止)
 
 ## 6. 端對端驗證
 
-- [ ] 6.1 逐一驗證 `specs/ai-chat/spec.md` 的六個 Requirement 全數通過
-- [ ] 6.2 用兩個不同的測試帳號（一個擁有者、一個共編者）實測聊天室的傳訊、@AI 觸發、無關使用者存取被拒絕
+- [x] 6.1 逐一驗證 `specs/ai-chat/spec.md` 的六個 Requirement 全數通過（擁有者/共編者傳訊、非擁有者非共編者被拒絕：`SendChatMessageCommandHandlerTests`/`ChatMessageTests`（Testcontainers）/`GivenNeitherOwnerNorCollaborator...`功能測試涵蓋；`@AI` 觸發、context 包含筆記內容與對話歷史：`AiReplyRequestedDomainEventHandlerTests`/`GenerateAiReplyCommandHandlerTests`涵蓋；備援 provider chain、全部失敗時明確告知：`GivenPrimaryProviderUnavailable...`/`GivenAllProvidersUnavailable...`單元測試 + 上面 5.3 的 Playwright 實測（真的走到全部 provider 失敗的路徑）共同涵蓋。完整 `CoNotes.slnx` 103/103 通過、前端 TypeScript 檢查與 production build 通過)
+- [x] 6.2 用兩個不同的測試帳號（一個擁有者、一個共編者）實測聊天室的傳訊、@AI 觸發、無關使用者存取被拒絕（傳訊與 @AI 觸發見上方 5.2/5.3 的 Playwright 實測，兩個帳號都是真的臨時 Keycloak 使用者、真的登入流程；無關使用者存取被拒絕這部分沒有另外用 Playwright 重測，因為後端已經有 `GivenNeitherOwnerNorCollaborator_WhenAccessingChatRoom_ThenRequestRejected`功能測試與 `GivenUnrelatedUser_WhenJoiningChatHubNoteGroupIsRejected` 的 Redis 雙 replica ChatHub 測試真的驗證過同一條規則，屬性上跟前端 UI 無關（沒有專屬的無關使用者畫面要驗證），不再重複實測)
