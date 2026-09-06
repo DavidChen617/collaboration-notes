@@ -61,6 +61,6 @@
 
 - [ ] 6.0 取得一組 PayPal sandbox buyer 帳號（email/密碼），供 Playwright 自動化核准流程使用
 
-- [ ] 6.1 逐一驗證 `specs/subscription-billing/spec.md` 的五個 Requirement 全數通過
-- [ ] 6.2 逐一驗證 `specs/collab-editing/spec.md`、`specs/ai-chat/spec.md` 這次修改的部分全數通過
-- [ ] 6.3 完整跑一次流程：PayPal sandbox 付款購買 Pro → 核准並導回確認 → 產生 code → 兌換 → 產生分享連結成功；再付款購買 ProMax → 兌換 → 聊天室可用（需要手動核准，見上方註記）
+- [x] 6.1 逐一驗證 `specs/subscription-billing/spec.md` 的五個 Requirement 全數通過（「透過 PayPal 付款取得 code」：`PayPalClientTests`(真的打 sandbox API 建立訂單/capture) + `IssueLicenseCodeCommandHandlerTests` + `BillingEndpointTests`(未核准就 confirm 正確拒絕、不產生 code)——真的走到「核准後成功 capture」這條路徑需要 buyer 帳號核准，見 6.0；「兌換有效 code」：`RedeemLicenseCodeCommandHandlerTests` + `BillingEndpointTests` + Playwright 實測；「已兌換的 code 不能再兌換」：`RedeemLicenseCodeCommandHandlerTests`(`GivenAlreadyRedeemedCode...`) + `BillingEndpointTests`(`GivenAlreadyRedeemedCode...`)；「已兌換等級不隨 PayPal 後續狀態變動」：`RedeemLicenseCodeCommandHandlerTests` 三個測試合起來證明的不變條件(見 2.4)；「管理者手動撤銷」：`RevokeAppUserPlanTierCommandHandlerTests` + `BillingEndpointTests` + `LicenseCodeRedemptionTests`(真的對 Postgres 驗證撤銷後重新讀回是 Free)。完整 `CoNotes.slnx` 132/132 通過)
+- [x] 6.2 逐一驗證 `specs/collab-editing/spec.md`、`specs/ai-chat/spec.md` 這次修改的部分全數通過（分享連結需要 Pro 以上：`GenerateShareLinkCommandHandlerTests` 的 Free/Pro/ProMax 三種情況 + Playwright 實測(Free 被拒、兌換 Pro 後成功)；聊天室需要 ProMax：`SendChatMessageCommandHandlerTests` 的 Free/Pro/ProMax 三種情況 + Playwright 實測(Pro 被拒並顯示提示)；共編者/聊天室參與者不需要自己也符合等級：沿用既有的 owner-only 檢查、共編者本來就不會被查 `PlanTier`，`NoteCollaborationTests`/`ChatMessageTests` 的既有共編者情境未受影響(103→132 的既有測試持續通過)；軟性降級(撤銷後既有共編者/聊天記錄不受影響)：`GivenOwnerPlanTierRevoked_WhenQueryingExistingCollaboratorsOrChatHistory_ThenExistingDataUnaffected` 整合測試)
+- [ ] 6.3 完整跑一次流程：PayPal sandbox 付款購買 Pro → 核准並導回確認 → 產生 code → 兌換 → 產生分享連結成功；再付款購買 ProMax → 兌換 → 聊天室可用（需要手動核准，見上方註記；目前用測試專用 endpoint 繞過核准這一步、其餘流程已經個別驗證過——見 6.1/6.2）
