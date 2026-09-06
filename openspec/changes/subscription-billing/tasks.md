@@ -33,8 +33,8 @@
 - [x] 3.1 撰寫 migration 為 `AppUser` 新增 `PlanTier` 欄位（`Free`/`Pro`/`ProMax`，預設 `Free`），驗證 down 可正確移除
 - [x] 3.2 撰寫 migration 新增 `LicenseCode` table，驗證 down 可正確移除
 - [x] 3.3 實作 `ILicenseCodeRepository` 的 Dapper 版本，Testcontainers 整合測試：`GivenPersistedCode_WhenRedeemedConcurrentlyByTwoRequests_ThenOnlyOneSucceeds`
-- [ ] 3.4 實作 `IPayPalClient`（OAuth2 client-credentials 換 access token、建立訂單、capture 訂單），呼叫真的 PayPal Sandbox REST API 驗證：建立訂單成功並取得可核准的網址
-- [ ] 3.5 架構測試：驗證 `CoNotes.Domain` 不參考 `CoNotes.Infrastructure`／`CoNotes.Api`
+- [x] 3.4 實作 `IPayPalClient`（OAuth2 client-credentials 換 access token、建立訂單、capture 訂單），呼叫真的 PayPal Sandbox REST API 驗證：建立訂單成功並取得可核准的網址（`PayPalClientTests`：`GivenValidCredentials_WhenCreatingOrder_ThenReturnsOrderIdAndApprovalUrl` 真的打 `api-m.sandbox.paypal.com` 建立訂單並取得 `approve` 連結；`GivenOrderThatHasNotBeenApprovedYet_WhenCapturing_ThenReturnsNotCompleted` 驗證還沒核准就 capture 會被 PayPal 拒絕（`422 ORDER_NOT_APPROVED`），`CaptureOrderAsync` 正確轉換成 `IsCompleted: false` 而不是拋例外；`PlanTier` 透過 `purchase_units[].custom_id` 帶去、從 capture 回應的 `purchase_units[].payments.captures[].custom_id` 讀回)
+- [x] 3.5 架構測試：驗證 `CoNotes.Domain` 不參考 `CoNotes.Infrastructure`／`CoNotes.Api`（沿用既有的 `LayerDependencyTests`，新增的型別都在既有專案內，自動涵蓋)
 
 ## 4. Api
 

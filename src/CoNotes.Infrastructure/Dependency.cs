@@ -3,6 +3,7 @@ using CoNotes.Domain.ChatMessages;
 using CoNotes.Domain.Notes;
 using CoNotes.Infrastructure.AppUsers;
 using CoNotes.Infrastructure.Billing;
+using CoNotes.Infrastructure.Billing.Providers;
 using CoNotes.Infrastructure.ChatMessages;
 using CoNotes.Infrastructure.ChatMessages.Providers;
 using CoNotes.Infrastructure.Identity;
@@ -30,6 +31,7 @@ public static class Dependency
             services.AddSingleton<GeminiChatProvider>();
             services.AddSingleton<IAiChatProvider>(services => services.GetRequiredService<GroqChatProvider>());
             services.AddSingleton<IAiChatProvider>(services => services.GetRequiredService<GeminiChatProvider>());
+            services.AddSingleton<IPayPalClient, PayPalClient>();
             services.AddScoped<INoteEditHistoryStore, NoteEditHistoryStore>();
             services.AddScoped<IUserContext, UserContext>();
 
