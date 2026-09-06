@@ -38,11 +38,13 @@
 
 ## 4. Api
 
-- [ ] 4.1 新增建立 PayPal 訂單（Orders API）的 endpoint（sandbox），回傳使用者要導去核准的 PayPal 網址
-- [ ] 4.2 新增確認付款完成的 endpoint（使用者從 PayPal 核准頁導回後，前端呼叫這個 endpoint 帶著 PayPal Order Id；後端呼叫 Capture API，狀態為 `COMPLETED` 才觸發 `IssueLicenseCodeCommand`，否則回覆失敗、不產生 code）
-- [ ] 4.3 新增兌換 license code 的 endpoint，Functional Test：`GivenValidUnusedCode_WhenRedeemEndpointCalled_ThenPlanTierUpdatedInResponse`、`GivenAlreadyRedeemedCode_WhenRedeemEndpointCalled_ThenReturnsRejection`
-- [ ] 4.4 新增管理者撤銷等級的 endpoint（`RequireAuthorization` 要求 `admin` realm role），Functional Test：`GivenAdminUser_WhenRevokeEndpointCalled_ThenPlanTierSetToFree`、`GivenNonAdminUser_WhenRevokeEndpointCalled_ThenReturns403`
-- [ ] 4.5 Functional/整合測試（端對端）：`GivenPayPalOrderCreatedAndCaptured_WhenFollowedByRedeem_ThenOwnerCanGenerateShareLinkAndUseAiChatPerTier`（用真的 PayPal Sandbox REST API 建立訂單；核准這一步需要 PayPal sandbox buyer 帳號，見 6.0/6.3 說明）
+> 新增 `BillingGroupEndpoint`（`/api/v1/billing`，比照 `NoteGroupEndpoint` 的慣例）。`CreateOrder`/`ConfirmOrder` 直接注入 `IPayPalClient`（不透過 Command——建立/確認訂單本身不是任何 Aggregate 的操作，比照 `NoteCollabHub` 直接呼叫 `INoteEditHistoryStore` 的先例），`ConfirmOrder` 確認 capture 成功後才呼叫 `IssueLicenseCodeCommand`。撤銷等級的 endpoint 用 `.RequireAuthorization(policy => policy.RequireRole("admin"))`——這是框架層級的角色檢查，跟 `RevokeAppUserPlanTierCommandHandler` 自己的 `IsAdmin()` 檢查是兩層防護：框架層讓真的 HTTP 呼叫在指令都還沒分派前就被 403 擋下；Handler 層則保護任何繞過 HTTP、直接用 `ISender` 呼叫這個 Command 的情境（例如 `LicenseCodeRedemptionTests` 這類直接用 `ISender` 呼叫的整合測試)。順便讓 `PlanTier` 這類 enum 在 JSON 回應裡序列化成字串（例如 `"ProMax"`）而不是底層數字，前端可讀性/穩定性都比較好（`Program.cs` 全域設定 `JsonStringEnumConverter`)。
+
+- [x] 4.1 新增建立 PayPal 訂單（Orders API）的 endpoint（sandbox），回傳使用者要導去核准的 PayPal 網址
+- [x] 4.2 新增確認付款完成的 endpoint（使用者從 PayPal 核准頁導回後，前端呼叫這個 endpoint 帶著 PayPal Order Id；後端呼叫 Capture API，狀態為 `COMPLETED` 才觸發 `IssueLicenseCodeCommand`，否則回覆失敗、不產生 code）
+- [x] 4.3 新增兌換 license code 的 endpoint，Functional Test：`GivenValidUnusedCode_WhenRedeemEndpointCalled_ThenPlanTierUpdatedInResponse`、`GivenAlreadyRedeemedCode_WhenRedeemEndpointCalled_ThenReturnsRejection`（測試前置狀態靠新增的 `POST /api/test/license-code`（跳過真的付款流程直接發一組 code），比照既有的 `POST /api/test/app-user/plan-tier`）
+- [x] 4.4 新增管理者撤銷等級的 endpoint（`RequireAuthorization` 要求 `admin` realm role），Functional Test：`GivenAdminUser_WhenRevokeEndpointCalled_ThenPlanTierSetToFree`、`GivenNonAdminUser_WhenRevokeEndpointCalled_ThenReturns403`（`TestTokens.CreateToken` 新增 `extraClaims` 參數，讓測試能簽出帶 `ClaimTypes.Role: "admin"` 的 JWT)
+- [x] 4.5 Functional Test（端對端）：`GivenPayPalOrderCreatedButNotApproved_WhenConfirmCalled_ThenRejectedAndNoLicenseCodeIssued`（用真的 PayPal Sandbox REST API 建立訂單、取得可核准的網址；還沒核准就呼叫 confirm，驗證正確回 400、不產生 code。核准這一步需要 PayPal sandbox buyer 帳號，見 6.0/6.3；兌換後產生分享連結/使用聊天室這段由 4.3 + 既有的 `NoteCollabEndpointTests`/`ChatMessageTests` 涵蓋)
 
 ## 5. 前端
 

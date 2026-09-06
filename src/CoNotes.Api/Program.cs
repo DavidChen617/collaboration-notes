@@ -1,12 +1,20 @@
+using System.Text.Json.Serialization;
 using CoNotes.Api.BackgroundJobs;
 using CoNotes.Api.Hubs;
 using CoNotes.Application;
 using CoNotes.Application.Abstractions;
 using CoNotes.Application.AppUsers.Commands.Upsert;
 using CoNotes.Domain.AppUsers;
+using CoNotes.Domain.Billing;
 using CoNotes.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// PlanTier 這類 enum 在 API 回應裡序列化成字串(例如 "ProMax"),而不是預設的底層數字——
+// 對前端來說可讀性/穩定性都比魔法數字好。
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter())
+);
 
 builder.Services
     .AddHttpContextAccessor()
@@ -76,6 +84,27 @@ app.MapPost("/api/test/app-user/plan-tier", async (
 })
 .RequireAuthorization();
 
+// 測試用途:直接產生一組 license code,跳過真的 PayPal 付款流程——讓 FunctionalTests 能準備好
+// 「有一組尚未使用的有效 code」這個前置狀態,直接測兌換 endpoint 本身的行為。
+app.MapPost("/api/test/license-code", async (
+    SetTestLicenseCodeRequest request,
+    ILicenseCodeRepository licenseCodeRepository,
+    TimeProvider timeProvider,
+    CancellationToken ct) =>
+{
+    var code = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+    var licenseCode = LicenseCode.Issue(
+        code,
+        Enum.Parse<PlanTier>(request.PlanTier),
+        "TEST-ORDER",
+        timeProvider.GetUtcNow().UtcDateTime
+    );
+    await licenseCodeRepository.AddAsync(licenseCode, ct);
+
+    return Results.Ok(new { Code = code });
+})
+.RequireAuthorization();
+
 app.MapEndpoints();
 app.MapHub<NoteCollabHub>("/hubs/notes");
 app.MapHub<ChatHub>("/hubs/chat");
@@ -83,3 +112,5 @@ app.MapHub<ChatHub>("/hubs/chat");
 app.Run();
 
 internal sealed record SetTestPlanTierRequest(string PlanTier);
+
+internal sealed record SetTestLicenseCodeRequest(string PlanTier);
