@@ -2,7 +2,7 @@ namespace CoNotes.Infrastructure.Persistence;
 
 internal sealed class AppDbContext(
     DbDataSource dataSource,
-    IAggregateRootChangeTracker tracker)
+    IAggregateRootChangeTracker tracker) : IDisposable, IAsyncDisposable
 {
     private DbConnection? _connection;
     public DbTransaction? Transaction
@@ -33,5 +33,16 @@ internal sealed class AppDbContext(
     public void TrackAggregateRoot(IAggregateRoot aggregateRoot)
     {
         tracker.Enqueue(aggregateRoot);
+    }
+
+    public void Dispose()
+    {
+        _connection?.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_connection is not null)
+            await _connection.DisposeAsync();
     }
 }
