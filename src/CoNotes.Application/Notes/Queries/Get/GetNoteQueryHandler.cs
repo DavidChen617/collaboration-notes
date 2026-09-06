@@ -1,3 +1,5 @@
+using System.Data;
+
 namespace CoNotes.Application.Notes.Queries.Get;
 
 internal sealed class GetNoteQueryHandler(
@@ -7,21 +9,23 @@ internal sealed class GetNoteQueryHandler(
 {
     public async Task<Result<GetNoteDto>> HandleAsync(GetNoteQuery query, CancellationToken cancellationToken)
     {
-        const string sql = """
+        var param = new { query.NoteId };
+
+        var sql = $"""
             select
-                id as NoteId,
-                owner_app_user_id as OwnerAppUserId,
-                title as Title,
-                content as Content,
-                created_at as CreatedOnUtc,
-                updated_at as UpdatedOnUtc
+                id as {nameof(NoteRow.NoteId)},
+                owner_app_user_id as {nameof(NoteRow.OwnerAppUserId)},
+                title as {nameof(NoteRow.Title)},
+                content as {nameof(NoteRow.Content)},
+                created_at as {nameof(NoteRow.CreatedOnUtc)},
+                updated_at as {nameof(NoteRow.UpdatedOnUtc)}
             from notes
-            where id = @NoteId
+            where id = @{nameof(param.NoteId)}
             """;
 
         using var connection = await dbConnectionFactory.CreateConnectionAsync(cancellationToken);
 
-        var command = new CommandDefinition(sql, new { query.NoteId }, cancellationToken: cancellationToken);
+        var command = new CommandDefinition(sql, param, cancellationToken: cancellationToken);
 
         var note = await connection.QuerySingleOrDefaultAsync<NoteRow>(command);
 
@@ -30,10 +34,31 @@ internal sealed class GetNoteQueryHandler(
 
         var requestingAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
-        if (note.OwnerAppUserId != requestingAppUserId)
+        if (note.OwnerAppUserId != requestingAppUserId && !await IsCollaboratorAsync(connection, note.NoteId, requestingAppUserId, cancellationToken))
             return new Error("Note.Get", "使用者沒有權檢視這篇筆記!", ErrorType.BadRequest);
 
         return new GetNoteDto(note.NoteId, note.Title, note.Content, note.CreatedOnUtc, note.UpdatedOnUtc);
+    }
+
+    private static async Task<bool> IsCollaboratorAsync(
+        IDbConnection connection,
+        Guid noteId,
+        Guid appUserId,
+        CancellationToken cancellationToken
+    )
+    {
+        var param = new { NoteId = noteId, AppUserId = appUserId };
+
+        var sql = $"""
+            select exists (
+                select 1 from note_collaborators
+                where note_id = @{nameof(param.NoteId)} and app_user_id = @{nameof(param.AppUserId)}
+            )
+            """;
+
+        var command = new CommandDefinition(sql, param, cancellationToken: cancellationToken);
+
+        return await connection.ExecuteScalarAsync<bool>(command);
     }
 
     private sealed record NoteRow(

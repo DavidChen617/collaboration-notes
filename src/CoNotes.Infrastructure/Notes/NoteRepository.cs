@@ -9,6 +9,8 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
     {
         var connection = await appDbContext.GetDbConnectionAsync(ct);
 
+        var param = new { NoteId = noteId };
+
         var noteCmd = new CommandDefinition(
             $"""
             select
@@ -17,11 +19,12 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
                 title as {nameof(NoteRow.Title)},
                 content as {nameof(NoteRow.Content)},
                 created_at as {nameof(NoteRow.CreatedOnUtc)},
-                updated_at as {nameof(NoteRow.UpdatedOnUtc)}
+                updated_at as {nameof(NoteRow.UpdatedOnUtc)},
+                share_token as {nameof(NoteRow.ShareToken)}
             from notes
-            where id = @NoteId;
+            where id = @{nameof(param.NoteId)};
             """,
-            new { NoteId = noteId },
+            param,
             cancellationToken: ct,
             transaction: appDbContext.Transaction);
 
@@ -30,18 +33,55 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         if (row is null)
             return null;
 
-        var linkedNoteIds = await GetLinkedNoteIdsAsync(noteId, ct);
+        return await RehydrateAsync(row, ct);
+    }
 
-        return NoteAggregate.Rehydrate(row.Id, row.OwnerAppUserId, row.Title, row.Content, row.CreatedOnUtc, row.UpdatedOnUtc, linkedNoteIds);
+    public async Task<NoteAggregate?> GetByShareTokenAsync(Guid shareToken, CancellationToken ct)
+    {
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
+
+        var param = new { ShareToken = shareToken };
+
+        var noteCmd = new CommandDefinition(
+            $"""
+            select
+                id as {nameof(NoteRow.Id)},
+                owner_app_user_id as {nameof(NoteRow.OwnerAppUserId)},
+                title as {nameof(NoteRow.Title)},
+                content as {nameof(NoteRow.Content)},
+                created_at as {nameof(NoteRow.CreatedOnUtc)},
+                updated_at as {nameof(NoteRow.UpdatedOnUtc)},
+                share_token as {nameof(NoteRow.ShareToken)}
+            from notes
+            where share_token = @{nameof(param.ShareToken)};
+            """,
+            param,
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var row = await connection.QuerySingleOrDefaultAsync<NoteRow>(noteCmd);
+
+        return row is null ? null : await RehydrateAsync(row, ct);
+    }
+
+    private async Task<NoteAggregate> RehydrateAsync(NoteRow row, CancellationToken ct)
+    {
+        var linkedNoteIds = await GetLinkedNoteIdsAsync(row.Id, ct);
+        var collaboratorAppUserIds = await GetCollaboratorAppUserIdsAsync(row.Id, ct);
+
+        return NoteAggregate.Rehydrate(
+            row.Id, row.OwnerAppUserId, row.Title, row.Content, row.CreatedOnUtc, row.UpdatedOnUtc,
+            linkedNoteIds, row.ShareToken, collaboratorAppUserIds);
     }
 
     public async Task<Result> AddAsync(NoteAggregate note, CancellationToken ct)
     {
         var cmd = new CommandDefinition(
             $"""
-            insert into notes (id, owner_app_user_id, title, content, created_at, updated_at)
+            insert into notes (id, owner_app_user_id, title, content, created_at, updated_at, share_token)
             values (@{nameof(note.Id)}, @{nameof(note.OwnerAppUserId)}, @{nameof(note.Title)},
-                    @{nameof(note.Content)}, @{nameof(note.CreatedOnUtc)}, @{nameof(note.UpdatedOnUtc)});
+                    @{nameof(note.Content)}, @{nameof(note.CreatedOnUtc)}, @{nameof(note.UpdatedOnUtc)},
+                    @{nameof(note.ShareToken)});
             """,
             note,
             cancellationToken: ct,
@@ -52,6 +92,7 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         await connection.ExecuteAsync(cmd);
 
         await ReplaceLinksAsync(note, ct);
+        await ReplaceCollaboratorsAsync(note, ct);
 
         appDbContext.TrackAggregateRoot(note);
 
@@ -65,7 +106,8 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
             update notes
             set title = @{nameof(note.Title)},
                 content = @{nameof(note.Content)},
-                updated_at = @{nameof(note.UpdatedOnUtc)}
+                updated_at = @{nameof(note.UpdatedOnUtc)},
+                share_token = @{nameof(note.ShareToken)}
             where id = @{nameof(note.Id)};
             """,
             note,
@@ -77,6 +119,7 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         await connection.ExecuteAsync(cmd);
 
         await ReplaceLinksAsync(note, ct);
+        await ReplaceCollaboratorsAsync(note, ct);
 
         appDbContext.TrackAggregateRoot(note);
 
@@ -110,14 +153,16 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         if (candidateNoteIds.Count == 0)
             return new HashSet<Guid>();
 
+        var param = new { OwnerAppUserId = ownerAppUserId, CandidateNoteIds = candidateNoteIds.ToArray() };
+
         var cmd = new CommandDefinition(
-            """
+            $"""
             select id
             from notes
-            where owner_app_user_id = @OwnerAppUserId
-              and id = any(@CandidateNoteIds);
+            where owner_app_user_id = @{nameof(param.OwnerAppUserId)}
+              and id = any(@{nameof(param.CandidateNoteIds)});
             """,
-            new { OwnerAppUserId = ownerAppUserId, CandidateNoteIds = candidateNoteIds.ToArray() },
+            param,
             cancellationToken: ct,
             transaction: appDbContext.Transaction);
 
@@ -132,15 +177,61 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
     {
         var connection = await appDbContext.GetDbConnectionAsync(ct);
 
+        var param = new { NoteId = noteId };
+
         var cmd = new CommandDefinition(
-            "select target_note_id from note_links where source_note_id = @NoteId;",
-            new { NoteId = noteId },
+            $"select target_note_id from note_links where source_note_id = @{nameof(param.NoteId)};",
+            param,
             cancellationToken: ct,
             transaction: appDbContext.Transaction);
 
         var targetNoteIds = await connection.QueryAsync<Guid>(cmd);
 
         return [.. targetNoteIds];
+    }
+
+    private async Task<IReadOnlyCollection<Guid>> GetCollaboratorAppUserIdsAsync(Guid noteId, CancellationToken ct)
+    {
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
+
+        var param = new { NoteId = noteId };
+
+        var cmd = new CommandDefinition(
+            $"select app_user_id from note_collaborators where note_id = @{nameof(param.NoteId)};",
+            param,
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var collaboratorAppUserIds = await connection.QueryAsync<Guid>(cmd);
+
+        return [.. collaboratorAppUserIds];
+    }
+
+    private async Task ReplaceCollaboratorsAsync(NoteAggregate note, CancellationToken ct)
+    {
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
+
+        var deleteCmd = new CommandDefinition(
+            $"delete from note_collaborators where note_id = @{nameof(note.Id)};",
+            note,
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        await connection.ExecuteAsync(deleteCmd);
+
+        if (note.CollaboratorAppUserIds.Count == 0)
+            return;
+
+        var insertCmd = new CommandDefinition(
+            $"""
+            insert into note_collaborators (note_id, app_user_id)
+            values (@{nameof(NoteAggregate.Id)}, @AppUserId);
+            """,
+            note.CollaboratorAppUserIds.Select(appUserId => new { note.Id, AppUserId = appUserId }),
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        await connection.ExecuteAsync(insertCmd);
     }
 
     private async Task ReplaceLinksAsync(NoteAggregate note, CancellationToken ct)
@@ -176,6 +267,7 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         string Title,
         string Content,
         DateTime CreatedOnUtc,
-        DateTime UpdatedOnUtc
+        DateTime UpdatedOnUtc,
+        Guid? ShareToken
     );
 }

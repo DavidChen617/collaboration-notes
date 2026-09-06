@@ -5,13 +5,16 @@ namespace CoNotes.Domain.Notes;
 public sealed class Note : AggregateRoot
 {
     private HashSet<Guid> _linkedNoteIds = [];
+    private readonly HashSet<Guid> _collaboratorAppUserIds = [];
 
     public Guid OwnerAppUserId { get; private set; }
     public string Title { get; private set; } = null!;
     public string Content { get; private set; } = string.Empty;
     public DateTime CreatedOnUtc { get; private set; }
     public DateTime UpdatedOnUtc { get; private set; }
+    public Guid? ShareToken { get; private set; }
     public IReadOnlyCollection<Guid> LinkedNoteIds => _linkedNoteIds;
+    public IReadOnlyCollection<Guid> CollaboratorAppUserIds => _collaboratorAppUserIds;
 
     private Note(
         Guid id,
@@ -20,7 +23,9 @@ public sealed class Note : AggregateRoot
         string content,
         DateTime createdAt,
         DateTime updatedAt,
-        IEnumerable<Guid>? linkedNoteIds = null
+        IEnumerable<Guid>? linkedNoteIds = null,
+        Guid? shareToken = null,
+        IEnumerable<Guid>? collaboratorAppUserIds = null
     )
     {
         Id = id;
@@ -30,6 +35,8 @@ public sealed class Note : AggregateRoot
         CreatedOnUtc = createdAt;
         UpdatedOnUtc = updatedAt;
         _linkedNoteIds = linkedNoteIds?.ToHashSet() ?? [];
+        ShareToken = shareToken;
+        _collaboratorAppUserIds = collaboratorAppUserIds?.ToHashSet() ?? [];
     }
 
     public static Note Create(Guid ownerAppUserId, string title, string content, DateTime nowUtc)
@@ -48,20 +55,93 @@ public sealed class Note : AggregateRoot
         string content,
         DateTime createdAt,
         DateTime updatedAt,
-        IEnumerable<Guid>? linkedNoteIds = null
+        IEnumerable<Guid>? linkedNoteIds = null,
+        Guid? shareToken = null,
+        IEnumerable<Guid>? collaboratorAppUserIds = null
     )
     {
-        return new(id, ownerAppUserId, title, content, createdAt, updatedAt, linkedNoteIds);
+        return new(id, ownerAppUserId, title, content, createdAt, updatedAt, linkedNoteIds, shareToken, collaboratorAppUserIds);
     }
+
+    public bool IsAccessibleBy(Guid appUserId) =>
+        appUserId == OwnerAppUserId || _collaboratorAppUserIds.Contains(appUserId);
 
     public Result Update(Guid requestingAppUserId, string title, string content, DateTime nowUtc)
     {
-        if (requestingAppUserId != OwnerAppUserId)
+        if (!IsAccessibleBy(requestingAppUserId))
             return new Error("Note.Update", "使用者沒有權限更新這篇筆記!", ErrorType.BadRequest);
 
         Title = title;
         Content = content;
         UpdatedOnUtc = nowUtc;
+
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// 產生一條新的分享連結 token, 取代目前(若有)的 token。ShareToken 是安全憑證,
+    /// 需要完整的隨機性以避免被猜到, 所以用 <see cref="Guid.NewGuid"/>(v4, 122 bits 亂數)
+    /// 而不是這個專案其他 Aggregate ID 慣用的 <see cref="Guid.CreateVersion7"/>
+    /// (v7 會編碼時間戳記, 拿來當分享 token 會洩漏建立時間、也減少可用的亂數位元)。
+    /// </summary>
+    public Result<Guid> GenerateShareLink(Guid requestingAppUserId)
+    {
+        if (requestingAppUserId != OwnerAppUserId)
+            return new Error("Note.GenerateShareLink", "使用者沒有權限產生這篇筆記的分享連結!", ErrorType.BadRequest);
+
+        var token = Guid.NewGuid();
+        ShareToken = token;
+
+        RaiseDomainEvent(new NoteShareLinkGeneratedDomainEvent(Id, token));
+
+        return token;
+    }
+
+    /// <summary>
+    /// 撤銷目前的分享連結(舊 token 立即失效), 並立刻產生一條新的有效連結。
+    /// 只影響連結本身, 不影響先前已透過連結加入的共編者。
+    /// </summary>
+    public Result<Guid> RevokeShareLink(Guid requestingAppUserId)
+    {
+        if (requestingAppUserId != OwnerAppUserId)
+            return new Error("Note.RevokeShareLink", "使用者沒有權限撤銷這篇筆記的分享連結!", ErrorType.BadRequest);
+
+        RaiseDomainEvent(new NoteShareLinkRevokedDomainEvent(Id));
+
+        var token = Guid.NewGuid();
+        ShareToken = token;
+
+        RaiseDomainEvent(new NoteShareLinkGeneratedDomainEvent(Id, token));
+
+        return token;
+    }
+
+    /// <summary>
+    /// 已登入使用者透過分享連結加入共編者名單。同一條連結被同一使用者重複開啟是 idempotent 的,
+    /// 不會重複加入或重複觸發事件;擁有者本人開啟自己的分享連結也是 no-op。
+    /// </summary>
+    public Result JoinViaShareLink(Guid shareToken, Guid joiningAppUserId)
+    {
+        if (ShareToken is null || ShareToken != shareToken)
+            return new Error("Note.JoinViaShareLink", "分享連結無效或已失效!", ErrorType.BadRequest);
+
+        if (joiningAppUserId == OwnerAppUserId || !_collaboratorAppUserIds.Add(joiningAppUserId))
+            return Result.Success();
+
+        RaiseDomainEvent(new NoteCollaboratorJoinedDomainEvent(Id, joiningAppUserId));
+
+        return Result.Success();
+    }
+
+    public Result RemoveCollaborator(Guid requestingAppUserId, Guid collaboratorAppUserId)
+    {
+        if (requestingAppUserId != OwnerAppUserId)
+            return new Error("Note.RemoveCollaborator", "使用者沒有權限移除共編者!", ErrorType.BadRequest);
+
+        if (!_collaboratorAppUserIds.Remove(collaboratorAppUserId))
+            return new Error("Note.RemoveCollaborator", "該使用者不是這篇筆記的共編者!", ErrorType.NotFound);
+
+        RaiseDomainEvent(new NoteCollaboratorRemovedDomainEvent(Id, collaboratorAppUserId));
 
         return Result.Success();
     }

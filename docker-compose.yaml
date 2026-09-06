@@ -31,6 +31,18 @@ services:
         condition: service_healthy
     restart: no
 
+  redis:
+    image: redis:8-alpine
+    container_name: conotes-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.3
     container_name: conotes-keycloak

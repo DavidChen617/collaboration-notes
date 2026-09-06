@@ -7,7 +7,10 @@ internal sealed class ListNotesQueryHandler(
 {
     public async Task<Result<ListNotesDto>> HandleAsync(ListNotesQuery query, CancellationToken cancellationToken)
     {
-        const string sql = """
+        var requestingAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
+        var param = new { RequestingAppUserId = requestingAppUserId };
+
+        var sql = $"""
             select
                 id as NoteId,
                 title as Title,
@@ -15,14 +18,16 @@ internal sealed class ListNotesQueryHandler(
                 created_at as CreatedOnUtc,
                 updated_at as UpdatedOnUtc
             from notes
-            where owner_app_user_id = @OwnerAppUserId
+            where owner_app_user_id = @{nameof(param.RequestingAppUserId)}
+               or exists (
+                   select 1 from note_collaborators
+                   where note_id = notes.id and app_user_id = @{nameof(param.RequestingAppUserId)}
+               )
             """;
-
-        var ownerAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
         using var connection = await dbConnectionFactory.CreateConnectionAsync(cancellationToken);
 
-        var command = new CommandDefinition(sql, new { OwnerAppUserId = ownerAppUserId }, cancellationToken: cancellationToken);
+        var command = new CommandDefinition(sql, param, cancellationToken: cancellationToken);
 
         var notes = await connection.QueryAsync<NoteItem>(command);
 
