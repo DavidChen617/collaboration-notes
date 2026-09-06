@@ -11,8 +11,7 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
 
         var param = new { NoteId = noteId };
 
-        var noteCmd = new CommandDefinition(
-            $"""
+        var sql = $"""
             select
                 id as {nameof(NoteRow.Id)},
                 owner_app_user_id as {nameof(NoteRow.OwnerAppUserId)},
@@ -23,17 +22,17 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
                 share_token as {nameof(NoteRow.ShareToken)}
             from notes
             where id = @{nameof(param.NoteId)};
-            """,
-            param,
-            cancellationToken: ct,
-            transaction: appDbContext.Transaction);
 
-        var row = await connection.QuerySingleOrDefaultAsync<NoteRow>(noteCmd);
+            select target_note_id from note_links where source_note_id = @{nameof(param.NoteId)};
 
-        if (row is null)
-            return null;
+            select app_user_id from note_collaborators where note_id = @{nameof(param.NoteId)};
+            """;
 
-        return await RehydrateAsync(row, ct);
+        var cmd = new CommandDefinition(sql, param, cancellationToken: ct, transaction: appDbContext.Transaction);
+
+        using var gridReader = await connection.QueryMultipleAsync(cmd);
+
+        return await RehydrateAsync(gridReader);
     }
 
     public async Task<NoteAggregate?> GetByShareTokenAsync(Guid shareToken, CancellationToken ct)
@@ -42,8 +41,7 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
 
         var param = new { ShareToken = shareToken };
 
-        var noteCmd = new CommandDefinition(
-            $"""
+        var sql = $"""
             select
                 id as {nameof(NoteRow.Id)},
                 owner_app_user_id as {nameof(NoteRow.OwnerAppUserId)},
@@ -54,24 +52,33 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
                 share_token as {nameof(NoteRow.ShareToken)}
             from notes
             where share_token = @{nameof(param.ShareToken)};
-            """,
-            param,
-            cancellationToken: ct,
-            transaction: appDbContext.Transaction);
 
-        var row = await connection.QuerySingleOrDefaultAsync<NoteRow>(noteCmd);
+            select target_note_id from note_links
+            where source_note_id = (select id from notes where share_token = @{nameof(param.ShareToken)});
 
-        return row is null ? null : await RehydrateAsync(row, ct);
+            select app_user_id from note_collaborators
+            where note_id = (select id from notes where share_token = @{nameof(param.ShareToken)});
+            """;
+
+        var cmd = new CommandDefinition(sql, param, cancellationToken: ct, transaction: appDbContext.Transaction);
+
+        using var gridReader = await connection.QueryMultipleAsync(cmd);
+
+        return await RehydrateAsync(gridReader);
     }
 
-    private async Task<NoteAggregate> RehydrateAsync(NoteRow row, CancellationToken ct)
+    private static async Task<NoteAggregate?> RehydrateAsync(SqlMapper.GridReader gridReader)
     {
-        var linkedNoteIds = await GetLinkedNoteIdsAsync(row.Id, ct);
-        var collaboratorAppUserIds = await GetCollaboratorAppUserIdsAsync(row.Id, ct);
+        var row = await gridReader.ReadSingleOrDefaultAsync<NoteRow>();
+        var linkedNoteIds = await gridReader.ReadAsync<Guid>();
+        var collaboratorAppUserIds = await gridReader.ReadAsync<Guid>();
+
+        if (row is null)
+            return null;
 
         return NoteAggregate.Rehydrate(
             row.Id, row.OwnerAppUserId, row.Title, row.Content, row.CreatedOnUtc, row.UpdatedOnUtc,
-            linkedNoteIds, row.ShareToken, collaboratorAppUserIds);
+            [.. linkedNoteIds], row.ShareToken, [.. collaboratorAppUserIds]);
     }
 
     public async Task<Result> AddAsync(NoteAggregate note, CancellationToken ct)
@@ -171,40 +178,6 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         var ownedNoteIds = await connection.QueryAsync<Guid>(cmd);
 
         return ownedNoteIds.ToHashSet();
-    }
-
-    private async Task<IReadOnlyCollection<Guid>> GetLinkedNoteIdsAsync(Guid noteId, CancellationToken ct)
-    {
-        var connection = await appDbContext.GetDbConnectionAsync(ct);
-
-        var param = new { NoteId = noteId };
-
-        var cmd = new CommandDefinition(
-            $"select target_note_id from note_links where source_note_id = @{nameof(param.NoteId)};",
-            param,
-            cancellationToken: ct,
-            transaction: appDbContext.Transaction);
-
-        var targetNoteIds = await connection.QueryAsync<Guid>(cmd);
-
-        return [.. targetNoteIds];
-    }
-
-    private async Task<IReadOnlyCollection<Guid>> GetCollaboratorAppUserIdsAsync(Guid noteId, CancellationToken ct)
-    {
-        var connection = await appDbContext.GetDbConnectionAsync(ct);
-
-        var param = new { NoteId = noteId };
-
-        var cmd = new CommandDefinition(
-            $"select app_user_id from note_collaborators where note_id = @{nameof(param.NoteId)};",
-            param,
-            cancellationToken: ct,
-            transaction: appDbContext.Transaction);
-
-        var collaboratorAppUserIds = await connection.QueryAsync<Guid>(cmd);
-
-        return [.. collaboratorAppUserIds];
     }
 
     private async Task ReplaceCollaboratorsAsync(NoteAggregate note, CancellationToken ct)

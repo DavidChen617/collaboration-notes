@@ -7,33 +7,31 @@ internal sealed class GetNoteGraphQueryHandler(
 {
     public async Task<Result<NoteGraphDto>> HandleAsync(GetNoteGraphQuery query, CancellationToken cancellationToken)
     {
-        const string nodesSql = """
+        var ownerAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
+        var param = new { OwnerAppUserId = ownerAppUserId };
+
+        var sql = $"""
             select
                 id as NoteId,
                 title as Title
             from notes
-            where owner_app_user_id = @OwnerAppUserId
-            """;
+            where owner_app_user_id = @{nameof(param.OwnerAppUserId)};
 
-        const string edgesSql = """
             select
                 source_note_id as SourceNoteId,
                 target_note_id as TargetNoteId
             from note_links
-            where source_note_id in (select id from notes where owner_app_user_id = @OwnerAppUserId)
+            where source_note_id in (select id from notes where owner_app_user_id = @{nameof(param.OwnerAppUserId)});
             """;
-
-        var ownerAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
         using var connection = await dbConnectionFactory.CreateConnectionAsync(cancellationToken);
 
-        var nodesCommand = new CommandDefinition(
-            nodesSql, new { OwnerAppUserId = ownerAppUserId }, cancellationToken: cancellationToken);
-        var nodes = await connection.QueryAsync<NoteGraphNode>(nodesCommand);
+        var command = new CommandDefinition(sql, param, cancellationToken: cancellationToken);
 
-        var edgesCommand = new CommandDefinition(
-            edgesSql, new { OwnerAppUserId = ownerAppUserId }, cancellationToken: cancellationToken);
-        var edges = await connection.QueryAsync<NoteGraphEdge>(edgesCommand);
+        using var gridReader = await connection.QueryMultipleAsync(command);
+
+        var nodes = await gridReader.ReadAsync<NoteGraphNode>();
+        var edges = await gridReader.ReadAsync<NoteGraphEdge>();
 
         return new NoteGraphDto([.. nodes], [.. edges]);
     }
