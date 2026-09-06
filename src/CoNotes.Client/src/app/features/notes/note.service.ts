@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from '../../core/app-config';
-import { NoteDetail, NoteGraph, NoteSearchResult, NoteSummary } from './note.model';
+import { NoteDetail, NoteGraph, NoteHistory, NoteSearchResult, NoteSummary, ShareLinkResult } from './note.model';
 
 interface ListNotesResponse {
   notes: NoteSummary[];
@@ -54,5 +54,26 @@ export class NoteService {
 
   getGraph(): Observable<NoteGraph> {
     return this.http.get<NoteGraph>(`${this.baseUrl}/graph`);
+  }
+
+  getHistory(noteId: string, atUtc?: string): Observable<NoteHistory> {
+    const params = atUtc ? { at: atUtc } : undefined;
+    return this.http.get<NoteHistory>(`${this.baseUrl}/${noteId}/history`, { params });
+  }
+
+  generateShareLink(noteId: string): Observable<ShareLinkResult> {
+    return this.http.post<ShareLinkResult>(`${this.baseUrl}/${noteId}/share-link`, null);
+  }
+
+  revokeShareLink(noteId: string): Observable<ShareLinkResult> {
+    return this.http.post<ShareLinkResult>(`${this.baseUrl}/${noteId}/share-link/revoke`, null);
+  }
+
+  joinViaShareLink(shareToken: string): Observable<{ noteId: string }> {
+    return this.http.post<{ noteId: string }>(`${this.baseUrl}/share-link/${shareToken}/join`, null);
+  }
+
+  removeCollaborator(noteId: string, collaboratorAppUserId: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${noteId}/collaborators/${collaboratorAppUserId}`);
   }
 }

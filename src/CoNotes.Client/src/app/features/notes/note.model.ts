@@ -33,3 +33,13 @@ export interface NoteGraph {
   nodes: NoteGraphNode[];
   edges: NoteGraphEdge[];
 }
+
+/** Yjs update/snapshot 內容都是 base64 字串(對應後端 byte[] 的 JSON 序列化方式)。 */
+export interface NoteHistory {
+  baseSnapshot: string | null;
+  subsequentUpdates: string[];
+}
+
+export interface ShareLinkResult {
+  shareToken: string;
+}
