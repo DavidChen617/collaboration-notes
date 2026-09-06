@@ -18,6 +18,13 @@ internal sealed class CreateNoteCommandHandler(
 
         var note = NoteAggregate.Create(ownerAppUserId, command.Title, command.Content);
 
+        var requestedTargetNoteIds = NoteLinkContentParser.ExtractLinkedNoteIds(command.Content);
+        var ownedTargetNoteIds = await noteRepository.FindOwnedNoteIdsAsync(ownerAppUserId, requestedTargetNoteIds, cancellationToken);
+
+        var resolveLinksResult = note.ResolveLinks(requestedTargetNoteIds, ownedTargetNoteIds);
+        if (!resolveLinksResult.IsSuccess)
+            return resolveLinksResult.Error;
+
         await noteRepository.AddAsync(note, cancellationToken);
 
         return new CreateNoteDto(note.Id);

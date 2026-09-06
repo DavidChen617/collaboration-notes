@@ -25,6 +25,13 @@ internal sealed class UpdateNoteCommandHandler(
         if (!updateResult.IsSuccess)
             return updateResult.Error;
 
+        var requestedTargetNoteIds = NoteLinkContentParser.ExtractLinkedNoteIds(command.Content);
+        var ownedTargetNoteIds = await noteRepository.FindOwnedNoteIdsAsync(requestingAppUserId, requestedTargetNoteIds, cancellationToken);
+
+        var resolveLinksResult = note.ResolveLinks(requestedTargetNoteIds, ownedTargetNoteIds);
+        if (!resolveLinksResult.IsSuccess)
+            return resolveLinksResult.Error;
+
         await noteRepository.UpdateAsync(note, cancellationToken);
 
         return new UpdateNoteDto(note.Id, note.Title, note.Content);

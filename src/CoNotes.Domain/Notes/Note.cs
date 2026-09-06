@@ -4,11 +4,14 @@ namespace CoNotes.Domain.Notes;
 
 public sealed class Note : AggregateRoot
 {
+    private HashSet<Guid> _linkedNoteIds = [];
+
     public Guid OwnerAppUserId { get; private set; }
     public string Title { get; private set; } = null!;
     public string Content { get; private set; } = string.Empty;
     public DateTime CreatedOnUtc { get; private set; }
     public DateTime UpdatedOnUtc { get; private set; }
+    public IReadOnlyCollection<Guid> LinkedNoteIds => _linkedNoteIds;
 
     private Note(
         Guid id,
@@ -16,7 +19,8 @@ public sealed class Note : AggregateRoot
         string title,
         string content,
         DateTime createdAt,
-        DateTime updatedAt
+        DateTime updatedAt,
+        IEnumerable<Guid>? linkedNoteIds = null
     )
     {
         Id = id;
@@ -25,6 +29,7 @@ public sealed class Note : AggregateRoot
         Content = content;
         CreatedOnUtc = createdAt;
         UpdatedOnUtc = updatedAt;
+        _linkedNoteIds = linkedNoteIds?.ToHashSet() ?? [];
     }
 
     public static Note Create(Guid ownerAppUserId, string title, string content)
@@ -43,10 +48,11 @@ public sealed class Note : AggregateRoot
         string title,
         string content,
         DateTime createdAt,
-        DateTime updatedAt
+        DateTime updatedAt,
+        IEnumerable<Guid>? linkedNoteIds = null
     )
     {
-        return new(id, ownerAppUserId, title, content, createdAt, updatedAt);
+        return new(id, ownerAppUserId, title, content, createdAt, updatedAt, linkedNoteIds);
     }
 
     public Result Update(Guid requestingAppUserId, string title, string content)
@@ -57,6 +63,31 @@ public sealed class Note : AggregateRoot
         Title = title;
         Content = content;
         UpdatedOnUtc = DateTime.UtcNow;
+
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Replaces this note's outgoing wikilinks with <paramref name="requestedTargetNoteIds"/>, rejecting the
+    /// whole call if any requested target isn't in <paramref name="ownedTargetNoteIds"/> (the subset of
+    /// requested targets the caller has already confirmed belong to this note's owner). Raises
+    /// <see cref="NoteLinkedToDomainEvent"/>/<see cref="NoteLinkRemovedDomainEvent"/> for the diff against the
+    /// previously resolved set.
+    /// </summary>
+    public Result ResolveLinks(IReadOnlyCollection<Guid> requestedTargetNoteIds, IReadOnlySet<Guid> ownedTargetNoteIds)
+    {
+        if (requestedTargetNoteIds.Any(targetNoteId => !ownedTargetNoteIds.Contains(targetNoteId)))
+            return new Error("Note.ResolveLinks", "只能連結到自己擁有的筆記!", ErrorType.BadRequest);
+
+        var newLinkedNoteIds = requestedTargetNoteIds.ToHashSet();
+
+        foreach (var addedTargetNoteId in newLinkedNoteIds.Except(_linkedNoteIds))
+            RaiseDomainEvent(new NoteLinkedToDomainEvent(Id, addedTargetNoteId));
+
+        foreach (var removedTargetNoteId in _linkedNoteIds.Except(newLinkedNoteIds))
+            RaiseDomainEvent(new NoteLinkRemovedDomainEvent(Id, removedTargetNoteId));
+
+        _linkedNoteIds = newLinkedNoteIds;
 
         return Result.Success();
     }

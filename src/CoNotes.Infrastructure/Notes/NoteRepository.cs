@@ -8,7 +8,9 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
 {
     public async Task<NoteAggregate?> GetByIdAsync(Guid noteId, CancellationToken ct)
     {
-        var cmd = new CommandDefinition(
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
+
+        var noteCmd = new CommandDefinition(
             $"""
             select
                 id as {nameof(NoteRow.Id)},
@@ -24,13 +26,14 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
             cancellationToken: ct,
             transaction: appDbContext.Transaction);
 
-        var connection = await appDbContext.GetDbConnectionAsync(ct);
+        var row = await connection.QuerySingleOrDefaultAsync<NoteRow>(noteCmd);
 
-        var row = await connection.QuerySingleOrDefaultAsync<NoteRow>(cmd);
+        if (row is null)
+            return null;
 
-        return row is null
-            ? null
-            : NoteAggregate.Rehydrate(row.Id, row.OwnerAppUserId, row.Title, row.Content, row.CreatedOnUtc, row.UpdatedOnUtc);
+        var linkedNoteIds = await GetLinkedNoteIdsAsync(noteId, ct);
+
+        return NoteAggregate.Rehydrate(row.Id, row.OwnerAppUserId, row.Title, row.Content, row.CreatedOnUtc, row.UpdatedOnUtc, linkedNoteIds);
     }
 
     public async Task<Result> AddAsync(NoteAggregate note, CancellationToken ct)
@@ -48,6 +51,8 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         var connection = await appDbContext.GetDbConnectionAsync(ct);
 
         await connection.ExecuteAsync(cmd);
+
+        await ReplaceLinksAsync(note, ct);
 
         appDbContext.TrackAggregateRoot(note);
 
@@ -72,6 +77,8 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
 
         await connection.ExecuteAsync(cmd);
 
+        await ReplaceLinksAsync(note, ct);
+
         appDbContext.TrackAggregateRoot(note);
 
         return Result.Success();
@@ -79,6 +86,8 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
 
     public async Task<Result> DeleteAsync(NoteAggregate note, CancellationToken ct)
     {
+        // note_links has `on delete cascade` on both source_note_id and target_note_id, so
+        // deleting the note row alone already removes every link where it was source or target.
         var cmd = new CommandDefinition(
             $"""
             delete from notes
@@ -95,6 +104,71 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         appDbContext.TrackAggregateRoot(note);
 
         return Result.Success();
+    }
+
+    public async Task<IReadOnlySet<Guid>> FindOwnedNoteIdsAsync(Guid ownerAppUserId, IReadOnlyCollection<Guid> candidateNoteIds, CancellationToken ct)
+    {
+        if (candidateNoteIds.Count == 0)
+            return new HashSet<Guid>();
+
+        var cmd = new CommandDefinition(
+            """
+            select id
+            from notes
+            where owner_app_user_id = @OwnerAppUserId
+              and id = any(@CandidateNoteIds);
+            """,
+            new { OwnerAppUserId = ownerAppUserId, CandidateNoteIds = candidateNoteIds.ToArray() },
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
+
+        var ownedNoteIds = await connection.QueryAsync<Guid>(cmd);
+
+        return ownedNoteIds.ToHashSet();
+    }
+
+    private async Task<IReadOnlyCollection<Guid>> GetLinkedNoteIdsAsync(Guid noteId, CancellationToken ct)
+    {
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
+
+        var cmd = new CommandDefinition(
+            "select target_note_id from note_links where source_note_id = @NoteId;",
+            new { NoteId = noteId },
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        var targetNoteIds = await connection.QueryAsync<Guid>(cmd);
+
+        return [.. targetNoteIds];
+    }
+
+    private async Task ReplaceLinksAsync(NoteAggregate note, CancellationToken ct)
+    {
+        var connection = await appDbContext.GetDbConnectionAsync(ct);
+
+        var deleteCmd = new CommandDefinition(
+            $"delete from note_links where source_note_id = @{nameof(note.Id)};",
+            note,
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        await connection.ExecuteAsync(deleteCmd);
+
+        if (note.LinkedNoteIds.Count == 0)
+            return;
+
+        var insertCmd = new CommandDefinition(
+            $"""
+            insert into note_links (source_note_id, target_note_id)
+            values (@{nameof(NoteAggregate.Id)}, @TargetNoteId);
+            """,
+            note.LinkedNoteIds.Select(targetNoteId => new { note.Id, TargetNoteId = targetNoteId }),
+            cancellationToken: ct,
+            transaction: appDbContext.Transaction);
+
+        await connection.ExecuteAsync(insertCmd);
     }
 
     private sealed record NoteRow(

@@ -154,6 +154,70 @@ public sealed class NoteEndpointTests(FunctionalTestWebAppFactory factory)
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task GivenAuthenticatedUser_WhenSearchNotesByTitle_ThenOnlyOwnNotesReturned()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var otherUser = await CreateProvisionedClientAsync();
+        await CreateNoteAsync(owner, "Quarterly roadmap", "Content");
+        await CreateNoteAsync(otherUser, "Quarterly roadmap", "Content");
+
+        var response = await owner.GetAsync($"{NotesEndpoint}/search?keyword=roadmap");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<SearchNotesResponse>();
+        Assert.NotNull(body);
+        var found = Assert.Single(body.Notes);
+        Assert.Equal("Quarterly roadmap", found.Title);
+    }
+
+    [Fact]
+    public async Task GivenAuthenticatedUser_WhenGetNoteGraph_ThenOnlyOwnDataReturned()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var otherUser = await CreateProvisionedClientAsync();
+        var targetNoteId = await CreateNoteAsync(owner, "Target", "Content");
+        var sourceNoteId = await CreateNoteAsync(owner, "Source", "Content");
+        await owner.PutAsJsonAsync($"{NotesEndpoint}/{sourceNoteId}", new
+        {
+            Title = "Source",
+            Content = $"""<p>See <span data-note-link="{targetNoteId}">Target</span></p>""",
+        });
+        await CreateNoteAsync(otherUser, "Other user's note", "Content");
+
+        var response = await owner.GetAsync($"{NotesEndpoint}/graph");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<NoteGraphResponse>();
+        Assert.NotNull(body);
+        Assert.Equal(2, body.Nodes.Count);
+        Assert.DoesNotContain(body.Nodes, n => n.Title == "Other user's note");
+        var edge = Assert.Single(body.Edges);
+        Assert.Equal(sourceNoteId, edge.SourceNoteId);
+        Assert.Equal(targetNoteId, edge.TargetNoteId);
+    }
+
+    [Fact]
+    public async Task GivenLinkToOtherUsersNote_WhenSaveNote_ThenRequestRejected()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var otherUser = await CreateProvisionedClientAsync();
+        var otherUsersNoteId = await CreateNoteAsync(otherUser, "Other user's note", "Content");
+        var noteId = await CreateNoteAsync(owner, "Title", "Content");
+
+        var response = await owner.PutAsJsonAsync($"{NotesEndpoint}/{noteId}", new
+        {
+            Title = "Title",
+            Content = $"""<p>See <span data-note-link="{otherUsersNoteId}">Other user's note</span></p>""",
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var getResponse = await owner.GetAsync($"{NotesEndpoint}/{noteId}");
+        var getBody = await getResponse.Content.ReadFromJsonAsync<GetNoteResponse>();
+        Assert.Equal("Content", getBody?.Content);
+    }
+
     private async Task<HttpClient> CreateProvisionedClientAsync()
     {
         var client = factory.CreateClient();
@@ -180,4 +244,14 @@ public sealed class NoteEndpointTests(FunctionalTestWebAppFactory factory)
     private sealed record ListNotesResponse(List<NoteItem> Notes);
 
     private sealed record GetNoteResponse(Guid NoteId, string Title, string Content);
+
+    private sealed record NoteSearchResult(Guid NoteId, string Title);
+
+    private sealed record SearchNotesResponse(List<NoteSearchResult> Notes);
+
+    private sealed record NoteGraphNode(Guid NoteId, string Title);
+
+    private sealed record NoteGraphEdge(Guid SourceNoteId, Guid TargetNoteId);
+
+    private sealed record NoteGraphResponse(List<NoteGraphNode> Nodes, List<NoteGraphEdge> Edges);
 }

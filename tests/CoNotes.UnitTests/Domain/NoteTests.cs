@@ -51,6 +51,67 @@ public class NoteTests
     }
 
     [Fact]
+    public void GivenLinkTargetOwnedBySameUser_WhenResolveLinks_ThenLinkAccepted()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var targetNoteId = Guid.NewGuid();
+
+        var result = note.ResolveLinks([targetNoteId], new HashSet<Guid> { targetNoteId });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal([targetNoteId], note.LinkedNoteIds);
+    }
+
+    [Fact]
+    public void GivenLinkTargetOwnedByAnotherUser_WhenResolveLinks_ThenLinkRejected()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var targetNoteId = Guid.NewGuid();
+
+        var result = note.ResolveLinks([targetNoteId], new HashSet<Guid>());
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Note.ResolveLinks", result.Error.Code);
+        Assert.Empty(note.LinkedNoteIds);
+    }
+
+    [Fact]
+    public void GivenNoteContentChanged_WhenLinksResolved_ThenNoteLinkedToEventsRaised()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var targetNoteId = Guid.NewGuid();
+
+        var result = note.ResolveLinks([targetNoteId], new HashSet<Guid> { targetNoteId });
+
+        Assert.True(result.IsSuccess);
+        var linkedEvent = Assert.IsType<NoteLinkedToDomainEvent>(Assert.Single(
+            note.DomainEvents, e => e is NoteLinkedToDomainEvent));
+        Assert.Equal(note.Id, linkedEvent.SourceNoteId);
+        Assert.Equal(targetNoteId, linkedEvent.TargetNoteId);
+    }
+
+    [Fact]
+    public void GivenLinkRemovedFromContent_WhenLinksResolved_ThenNoteLinkRemovedEventRaised()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content");
+        var targetNoteId = Guid.NewGuid();
+        note.ResolveLinks([targetNoteId], new HashSet<Guid> { targetNoteId });
+
+        var result = note.ResolveLinks([], new HashSet<Guid>());
+
+        Assert.True(result.IsSuccess);
+        var removedEvent = Assert.IsType<NoteLinkRemovedDomainEvent>(Assert.Single(
+            note.DomainEvents, e => e is NoteLinkRemovedDomainEvent));
+        Assert.Equal(note.Id, removedEvent.SourceNoteId);
+        Assert.Equal(targetNoteId, removedEvent.TargetNoteId);
+        Assert.Empty(note.LinkedNoteIds);
+    }
+
+    [Fact]
     public void GivenOwner_WhenDeleting_ThenSucceedsAndRaisesNoteDeletedEvent()
     {
         var ownerAppUserId = Guid.NewGuid();
