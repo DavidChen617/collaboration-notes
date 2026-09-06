@@ -161,6 +161,81 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     }
 
     [Fact]
+    public async Task GivenOwnerOrCollaborator_WhenSendingChatMessage_ThenMessageStoredAndReadable()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var collaborator = await CreateProvisionedClientAsync();
+        var noteId = await CreateNoteAsync(owner, "Title", "Content");
+        var shareToken = await GenerateShareLinkAsync(owner, noteId);
+        await JoinAsync(collaborator, shareToken);
+
+        var ownerSendResponse = await owner.PostAsJsonAsync(
+            $"{NotesEndpoint}/{noteId}/chat/messages",
+            new { Content = "Owner message" }
+        );
+        Assert.Equal(HttpStatusCode.OK, ownerSendResponse.StatusCode);
+
+        var collaboratorSendResponse = await collaborator.PostAsJsonAsync(
+            $"{NotesEndpoint}/{noteId}/chat/messages",
+            new { Content = "Collaborator message" }
+        );
+        Assert.Equal(HttpStatusCode.OK, collaboratorSendResponse.StatusCode);
+
+        var historyResponse = await owner.GetAsync($"{NotesEndpoint}/{noteId}/chat/messages");
+        Assert.Equal(HttpStatusCode.OK, historyResponse.StatusCode);
+        var history = await historyResponse.Content.ReadFromJsonAsync<ChatHistoryResponse>();
+        Assert.NotNull(history);
+        Assert.Equal(
+            ["Owner message", "Collaborator message"],
+            history.Messages.Select(message => message.Content)
+        );
+    }
+
+    [Fact]
+    public async Task GivenNeitherOwnerNorCollaborator_WhenAccessingChatRoom_ThenRequestRejected()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var unrelatedUser = await CreateProvisionedClientAsync();
+        var noteId = await CreateNoteAsync(owner, "Title", "Content");
+
+        var historyResponse = await unrelatedUser.GetAsync($"{NotesEndpoint}/{noteId}/chat/messages");
+        Assert.Equal(HttpStatusCode.BadRequest, historyResponse.StatusCode);
+
+        var sendResponse = await unrelatedUser.PostAsJsonAsync(
+            $"{NotesEndpoint}/{noteId}/chat/messages",
+            new { Content = "Unauthorized" }
+        );
+        Assert.Equal(HttpStatusCode.BadRequest, sendResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task GivenMessageWithAiMention_WhenProcessed_ThenAiReplyEventuallyAppearsInChatRoom()
+    {
+        var owner = await CreateProvisionedClientAsync();
+        var noteId = await CreateNoteAsync(owner, "Title", "Content");
+
+        var sendResponse = await owner.PostAsJsonAsync(
+            $"{NotesEndpoint}/{noteId}/chat/messages",
+            new { Content = "@AI 請摘要這篇筆記" }
+        );
+        Assert.Equal(HttpStatusCode.OK, sendResponse.StatusCode);
+
+        ChatHistoryResponse? history = null;
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            await Task.Delay(100);
+            var historyResponse = await owner.GetAsync($"{NotesEndpoint}/{noteId}/chat/messages");
+            history = await historyResponse.Content.ReadFromJsonAsync<ChatHistoryResponse>();
+            if (history?.Messages.Any(message => message.IsAiReply) == true)
+                break;
+        }
+
+        Assert.NotNull(history);
+        var aiReply = Assert.Single(history.Messages, message => message.IsAiReply);
+        Assert.Contains("AI 目前無法回應", aiReply.Content);
+    }
+
+    [Fact]
     public async Task GivenOwner_WhenGettingNoteHistory_ThenReturns200WithEmptyHistoryForANoteWithNoLiveEdits()
     {
         var owner = await CreateProvisionedClientAsync();
@@ -241,6 +316,16 @@ public sealed class NoteCollabEndpointTests(FunctionalTestWebAppFactory factory)
     private sealed record NoteHistoryResponse(byte[]? BaseSnapshot, List<byte[]> SubsequentUpdates);
 
     private sealed record CollaborationResponse(string? ShareToken, List<Guid> CollaboratorAppUserIds);
+
+    private sealed record ChatHistoryResponse(List<ChatMessageItemResponse> Messages);
+
+    private sealed record ChatMessageItemResponse(
+        Guid ChatMessageId,
+        Guid? AuthorAppUserId,
+        bool IsAiReply,
+        string Content,
+        DateTime CreatedAt
+    );
 
     private sealed record NoteItem(Guid NoteId, string Title, string Content);
 

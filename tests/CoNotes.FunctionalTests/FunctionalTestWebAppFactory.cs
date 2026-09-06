@@ -28,6 +28,7 @@ public sealed class FunctionalTestWebAppFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:DefaultConnection", _dbContainer.GetConnectionString());
+        builder.UseSetting("Redis:ConnectionString", string.Empty);
 
         builder.ConfigureTestServices(services =>
         {

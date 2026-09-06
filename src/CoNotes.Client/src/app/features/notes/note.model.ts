@@ -48,3 +48,12 @@ export interface NoteCollaboration {
   shareToken: string | null;
   collaboratorAppUserIds: string[];
 }
+
+export interface ChatMessage {
+  chatMessageId: string;
+  noteId: string;
+  authorAppUserId: string | null;
+  isAiReply: boolean;
+  content: string;
+  createdAt: string;
+}

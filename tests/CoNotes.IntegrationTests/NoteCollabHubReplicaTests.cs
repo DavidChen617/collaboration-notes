@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -129,6 +131,85 @@ public sealed class NoteCollabHubReplicaTests : IAsyncLifetime
         Assert.Equal(sentUpdate, await receivedUpdateOnReplica2.Task);
     }
 
+    [Fact]
+    public async Task GivenUnrelatedUser_WhenJoiningChatHubNoteGroup_ThenAccessIsRejected()
+    {
+        var ownerSub = Guid.NewGuid().ToString();
+        var unrelatedSub = Guid.NewGuid().ToString();
+        var ownerToken = CreateToken(ownerSub);
+        var unrelatedToken = CreateToken(unrelatedSub);
+
+        var ownerClient = _replica1.CreateClient();
+        ownerClient.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ownerToken);
+        var createResponse = await ownerClient.PostAsJsonAsync(
+            "/api/v1/notes",
+            new { Title = "Chat note", Content = "Content" }
+        );
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateNoteResponse>();
+        var noteId = created!.NoteId;
+
+        var unrelatedClient = _replica1.CreateClient();
+        unrelatedClient.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", unrelatedToken);
+        var provisionResponse = await unrelatedClient.PostAsync("/api/test/app-user", content: null);
+        Assert.Equal(HttpStatusCode.OK, provisionResponse.StatusCode);
+
+        await using var ownerConnection = BuildChatHubConnection(_replica1, ownerToken);
+        await using var unrelatedConnection = BuildChatHubConnection(_replica2, unrelatedToken);
+        await ownerConnection.StartAsync();
+        await unrelatedConnection.StartAsync();
+
+        await ownerConnection.InvokeAsync("JoinNoteAsync", noteId);
+        var exception = await Assert.ThrowsAsync<HubException>(
+            () => unrelatedConnection.InvokeAsync("JoinNoteAsync", noteId)
+        );
+        Assert.Contains("沒有權限", exception.Message);
+    }
+
+    [Fact]
+    public async Task GivenTwoChatHubReplicas_WhenOneConnectionSendsMessage_ThenOtherConnectionReceivesIt()
+    {
+        var keycloakSub = Guid.NewGuid().ToString();
+        var token = CreateToken(keycloakSub);
+        var client = _replica1.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/notes",
+            new { Title = "Chat note", Content = "Content" }
+        );
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateNoteResponse>();
+        var noteId = created!.NoteId;
+
+        await using var connectionOnReplica1 = BuildChatHubConnection(_replica1, token);
+        await using var connectionOnReplica2 = BuildChatHubConnection(_replica2, token);
+        var received = new TaskCompletionSource<ChatMessageResponse>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        connectionOnReplica2.On<ChatMessageResponse>(
+            "ReceiveMessage",
+            message => received.TrySetResult(message)
+        );
+
+        await connectionOnReplica1.StartAsync();
+        await connectionOnReplica2.StartAsync();
+        await connectionOnReplica1.InvokeAsync("JoinNoteAsync", noteId);
+        await connectionOnReplica2.InvokeAsync("JoinNoteAsync", noteId);
+
+        var sent = await connectionOnReplica1.InvokeAsync<ChatMessageResponse>(
+            "SendMessageAsync",
+            noteId,
+            "hello from replica 1"
+        );
+
+        var completed = await Task.WhenAny(received.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        Assert.Same(received.Task, completed);
+        var receivedMessage = await received.Task;
+        Assert.Equal(sent.ChatMessageId, receivedMessage.ChatMessageId);
+        Assert.Equal("hello from replica 1", receivedMessage.Content);
+    }
+
     private static HubConnection BuildHubConnection(WebApplicationFactory<Program> factory, string token)
     {
         var handler = factory.Server.CreateHandler();
@@ -142,5 +223,27 @@ public sealed class NoteCollabHubReplicaTests : IAsyncLifetime
             .Build();
     }
 
+    private static HubConnection BuildChatHubConnection(WebApplicationFactory<Program> factory, string token)
+    {
+        var handler = factory.Server.CreateHandler();
+
+        return new HubConnectionBuilder()
+            .WithUrl(new Uri(factory.Server.BaseAddress, $"/hubs/chat?access_token={token}"), options =>
+            {
+                options.HttpMessageHandlerFactory = _ => handler;
+                options.Transports = HttpTransportType.LongPolling;
+            })
+            .Build();
+    }
+
     private sealed record CreateNoteResponse(Guid NoteId);
+
+    private sealed record ChatMessageResponse(
+        Guid ChatMessageId,
+        Guid NoteId,
+        Guid? AuthorAppUserId,
+        bool IsAiReply,
+        string Content,
+        DateTime CreatedAt
+    );
 }

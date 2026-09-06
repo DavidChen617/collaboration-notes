@@ -1,5 +1,7 @@
+using CoNotes.Api.BackgroundJobs;
 using CoNotes.Api.Hubs;
 using CoNotes.Application;
+using CoNotes.Application.Abstractions;
 using CoNotes.Application.AppUsers.Commands.Upsert;
 using CoNotes.Infrastructure;
 
@@ -20,6 +22,15 @@ builder.AddOpenTelemetryConfiguration();
 builder.Services
     .AddApplication()
     .AddInfrastructure(builder.Configuration);
+
+builder.Services.AddSingleton<IChatMessageBroadcaster, ChatMessageBroadcaster>();
+builder.Services.AddSingleton<AiReplyRequestQueue>();
+builder.Services.AddSingleton<IAiReplyRequestQueue>(
+    services => services.GetRequiredService<AiReplyRequestQueue>()
+);
+builder.Services.AddHostedService(
+    services => services.GetRequiredService<AiReplyRequestQueue>()
+);
 
 var app = builder.Build();
 
@@ -46,6 +57,6 @@ app.MapPost("/api/test/app-user", async (ISender sender, HttpContext httpContext
 
 app.MapEndpoints();
 app.MapHub<NoteCollabHub>("/hubs/notes");
+app.MapHub<ChatHub>("/hubs/chat");
 
 app.Run();
-
