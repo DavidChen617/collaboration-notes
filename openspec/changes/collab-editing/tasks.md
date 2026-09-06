@@ -35,11 +35,13 @@
 
 ## 4. Api
 
-- [ ] 4.1 新增產生/撤銷分享連結、移除共編者的 Minimal API Endpoint
-- [ ] 4.2 功能測試：`GivenOwner_WhenGeneratingOrRevokingShareLink_ThenSucceeds`、`GivenCollaborator_WhenGeneratingOrRevokingShareLinkOrRemovingCollaborator_ThenReturns403`
-- [ ] 4.3 功能測試：`GivenAuthenticatedUser_WhenOpeningValidShareLink_ThenAddedAsCollaborator`
-- [ ] 4.4 功能測試：`GivenCollaborator_WhenListingOrReadingOrUpdatingNote_ThenSucceeds`、`GivenUnrelatedUser_WhenAccessingNote_ThenRejected`（涵蓋 `specs/notes/spec.md` 這次修改的三個 Requirement）
-- [ ] 4.5 架構測試：驗證 `CoNotes.Domain` 不參考 `CoNotes.Infrastructure`／`CoNotes.Api`
+> Endpoint 路由：`POST /notes/{noteId}/share-link`(產生)、`POST /notes/{noteId}/share-link/revoke`(撤銷並換發新連結)、`POST /notes/share-link/{shareToken}/join`(加入共編，不掛在 `{noteId}` 底下是因為呼叫者不知道 noteId，只有 token)、`DELETE /notes/{noteId}/collaborators/{collaboratorAppUserId}`(移除共編者)。4.2 原本寫「回 403」，但這個專案從 notes-crud 開始，所有「不是擁有者」的拒絕都是 `ErrorType.BadRequest` → 400（既有的 `GivenNonOwner_WhenUpdatingSomeoneElsesNote...`／`GivenNonOwner_WhenDeletingSomeoneElsesNote...` 都是驗證 400），這裡沿用同一個慣例改成 400，不然同一種「不是擁有者」的錯誤在 API 裡會有兩種狀態碼。
+
+- [x] 4.1 新增產生/撤銷分享連結、移除共編者的 Minimal API Endpoint（`GenerateShareLink.cs`／`RevokeShareLink.cs`／`JoinNoteViaShareLink.cs`／`RemoveCollaborator.cs`）
+- [x] 4.2 功能測試：`GivenOwner_WhenGeneratingOrRevokingShareLink_ThenSucceeds`、`GivenCollaborator_WhenGeneratingOrRevokingShareLinkOrRemovingCollaborator_ThenIsRejected`（見上方說明，回 400 不是 403）
+- [x] 4.3 功能測試：`GivenAuthenticatedUser_WhenOpeningValidShareLink_ThenAddedAsCollaborator`（額外加了 `GivenInvalidShareToken_WhenJoining_ThenIsRejected`）
+- [x] 4.4 功能測試：`GivenCollaborator_WhenListingOrReadingOrUpdatingNote_ThenSucceeds`、`GivenUnrelatedUser_WhenAccessingNote_ThenRejected`（涵蓋 `specs/notes/spec.md` 這次修改的三個 Requirement；額外加了 `GivenOwner_WhenRemovingCollaborator_ThenCollaboratorCanNoLongerAccessTheNote`，都在 `tests/CoNotes.FunctionalTests/NoteCollabEndpointTests.cs`）
+- [x] 4.5 架構測試：驗證 `CoNotes.Domain` 不參考 `CoNotes.Infrastructure`／`CoNotes.Api`（沿用既有的 `LayerDependencyTests`，組件層級檢查，新增的型別都在既有專案內，自動涵蓋，不需要新測試）
 
 ## 5. 前端整合
 
