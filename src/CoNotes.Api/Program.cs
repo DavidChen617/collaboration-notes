@@ -7,8 +7,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddHttpContextAccessor()
     .AddEndpoints()
-    .AddApiVersionConfiguration()
+    .AddApiVersionConfiguration(builder.Environment.ApplicationName)
     .AddCustomResultErrorTypeMap()
+    .AddProblemDetailConfiguration()
     .AddAuthenticationConfiguration(builder.Configuration, builder.Environment)
     .AddCorsConfiguration(builder.Configuration);
 
@@ -45,4 +46,3 @@ app.MapEndpoints();
 
 app.Run();
 
-public partial class Program;
