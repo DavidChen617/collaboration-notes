@@ -5,9 +5,12 @@
 #   postgres-credentials   <- postgres-password, app-password, keycloak-password
 #   keycloak-credentials   <- admin-password
 #   cloudflared-credentials <- TUNNEL_TOKEN
-# 這三個 Secret 都刻意不 commit 進 git 真實內容（只有空殼在 infra/k8s 裡讓 ArgoCD
-# 管理存在性，見 infra/argocd/application.yaml 的 ignoreDifferences），避免
-# selfHeal 把伺服器端套用的真實密鑰值改回去(見 infra/README.md「密鑰管理」)。
+# 這四個 Secret 完全不進 git、也不讓 ArgoCD 知道它們存在(見 infra/README.md
+# 「密鑰管理」)。曾經試過在 infra/k8s 放空殼 manifest + ArgoCD ignoreDifferences
+# 讓 ArgoCD 至少管理存在性，但 ignoreDifferences 不保證擋住 sync 時的實際覆蓋
+# (連 RespectIgnoreDifferences=true 都遇到已知的 ArgoCD bug 沒擋住,
+# github.com/argoproj/argo-cd/issues/8970),真的把這幾個 Secret 的密碼清空過一次
+# 導致 Keycloak/API 掛掉——之後改回完全不進 git 這個更保守但可靠的做法。
 # 用法：./infra/scripts/apply-secrets.sh [.env 檔案路徑，預設 /etc/conotes/secrets.env]
 set -euo pipefail
 

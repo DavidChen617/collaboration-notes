@@ -40,11 +40,20 @@
 `cicd-deployment` change 的決定：這類密鑰完全不進 CI/CD、也不進 git（見
 `openspec/changes/cicd-deployment/design.md` 決定 5）。維護方式是伺服器端一份
 `.env` 檔案，手動執行 `infra/scripts/apply-secrets.sh` 套用成對應的 k8s Secret；
-`infra/k8s` 底下有對應這幾個 Secret 的「空殼」manifest（只宣告存在與 key 名稱，
-`stringData` 是空字串），讓 ArgoCD 能在新叢集 bootstrap 時建出這些物件，但
-`infra/argocd/application.yaml` 對它們設定了 `ignoreDifferences`（忽略
-`data`/`stringData`），所以 ArgoCD 不會把伺服器端套用的真實內容用 `selfHeal`
-蓋回空殼，也不會因為内容跟 git 不同就當成 drift。
+這四個 Secret（`conotes-secrets`／`postgres-credentials`／`keycloak-credentials`／
+`cloudflared-credentials`）完全不在 `infra/k8s` 裡宣告、ArgoCD 完全不知道它們存在。
+
+> **事故記錄**：曾經在 `infra/k8s` 放這幾個 Secret 的「空殼」manifest（只宣告存在
+> 與 key 名稱，`stringData` 是空字串），想讓 ArgoCD 能在新叢集 bootstrap 時建出
+> 這些物件，並用 `ignoreDifferences` 忽略 `data`/`stringData` 差異，指望 ArgoCD
+> 不會把伺服器端套用的真實內容蓋回空殼。實際上 `ignoreDifferences` 只影響
+> 「算不算 OutOfSync」的判斷，不保證阻止 sync 時真的把欄位套用回去；即使另外加
+> `syncOptions: [RespectIgnoreDifferences=true]`，也踩到一個已知的 ArgoCD bug
+> （[argo-cd#8970](https://github.com/argoproj/argo-cd/issues/8970)）沒有真的擋住。
+> 結果是這幾個 Secret 第一次被 git 追蹤到、以及之後一次強制 sync 時，密碼被清空
+> 兩次，導致 Keycloak/API 直接連不上資料庫掛掉。已經改回這裡描述的、更保守但
+> 可靠的做法：Secret 完全不進 git，新叢集 bootstrap 時就是要手動先跑一次
+> `apply-secrets.sh`，不指望 ArgoCD 幫忙建空殼。
 
 - **`.env` 放在哪裡**：叢集任一台能操作 `kubectl` 的節點上，單一檔案，路徑固定用
   `/etc/conotes/secrets.env`（`apply-secrets.sh` 的預設路徑，也可以在執行時
