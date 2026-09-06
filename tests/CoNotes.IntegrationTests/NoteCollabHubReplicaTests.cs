@@ -64,7 +64,7 @@ public sealed class NoteCollabHubReplicaTests : IAsyncLifetime
             // 一個手動設定的 AppUserId, 不看真正的 JWT), 因為其他 IntegrationTests 都是直接用 ISender
             // 呼叫、沒有真的 HTTP request。這裡真的會走 JWT → SignalR [Authorize] 的完整流程, 需要換回
             // 真正的 UserContext, 兩個 replica 才會用同一套邏輯從 token 解析出同一個 AppUserId。
-            services.AddScoped<IUserContext, CoNotes.Infrastructure.UserContext>();
+            services.AddScoped<IUserContext, CoNotes.Infrastructure.Identity.UserContext>();
 
             services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {

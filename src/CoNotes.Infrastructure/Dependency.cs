@@ -1,5 +1,6 @@
 using CoNotes.Domain.Notes;
 using CoNotes.Infrastructure.AppUsers;
+using CoNotes.Infrastructure.Identity;
 using CoNotes.Infrastructure.Notes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

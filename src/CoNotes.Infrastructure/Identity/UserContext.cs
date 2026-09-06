@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace CoNotes.Infrastructure;
+namespace CoNotes.Infrastructure.Identity;
 
 internal sealed class UserContext(
     IHttpContextAccessor httpContextAccessor,
