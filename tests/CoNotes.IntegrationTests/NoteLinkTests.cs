@@ -29,7 +29,7 @@ public sealed class NoteLinkTests(IntegrationTestWebAppFactory factory)
         var source = NoteAggregate.Create(owner.Id, "Source", "Content", DateTime.UtcNow);
         await noteRepository.AddAsync(source, CancellationToken.None);
 
-        source.Update(owner.Id, "Source", $"""<p>See <span data-note-link="{target.Id}">Target</span></p>""", DateTime.UtcNow);
+        source.Update("Source", $"""<p>See <span data-note-link="{target.Id}">Target</span></p>""", DateTime.UtcNow);
         source.ResolveLinks([target.Id], new HashSet<Guid> { target.Id });
         await noteRepository.UpdateAsync(source, CancellationToken.None);
 
@@ -57,7 +57,7 @@ public sealed class NoteLinkTests(IntegrationTestWebAppFactory factory)
         source.ResolveLinks([target.Id], new HashSet<Guid> { target.Id });
         await noteRepository.UpdateAsync(source, CancellationToken.None);
 
-        target.Delete(owner.Id);
+        target.Delete();
         await noteRepository.DeleteAsync(target, CancellationToken.None);
 
         var reloadedSource = await noteRepository.GetByIdAsync(source.Id, CancellationToken.None);

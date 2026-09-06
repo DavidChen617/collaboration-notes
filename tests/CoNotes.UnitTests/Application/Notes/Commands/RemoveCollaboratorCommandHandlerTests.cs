@@ -15,7 +15,7 @@ public class RemoveCollaboratorCommandHandlerTests
         var collaboratorAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var shareToken = new ShareLinkToken(Guid.NewGuid().ToString());
-        note.SetShareLink(ownerAppUserId, shareToken);
+        note.SetShareLink(shareToken);
         note.JoinViaShareLink(shareToken, collaboratorAppUserId);
 
         var userContext = Substitute.For<IUserContext>();
@@ -41,7 +41,7 @@ public class RemoveCollaboratorCommandHandlerTests
         var collaboratorAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var shareToken = new ShareLinkToken(Guid.NewGuid().ToString());
-        note.SetShareLink(ownerAppUserId, shareToken);
+        note.SetShareLink(shareToken);
         note.JoinViaShareLink(shareToken, collaboratorAppUserId);
 
         var userContext = Substitute.For<IUserContext>();

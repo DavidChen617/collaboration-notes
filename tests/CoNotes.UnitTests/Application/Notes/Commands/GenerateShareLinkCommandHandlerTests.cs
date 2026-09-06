@@ -50,7 +50,7 @@ public class GenerateShareLinkCommandHandlerTests
         var result = await handler.HandleAsync(command, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("Note.SetShareLink", result.Error.Code);
+        Assert.Equal("Note.GenerateShareLink", result.Error.Code);
         await noteRepository.DidNotReceive().UpdateAsync(Arg.Any<NoteAggregate>(), Arg.Any<CancellationToken>());
     }
 }

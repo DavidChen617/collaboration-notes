@@ -16,7 +16,7 @@ public class JoinNoteViaShareLinkCommandHandlerTests
         var secondJoiningAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var shareToken = new ShareLinkToken(Guid.NewGuid().ToString());
-        note.SetShareLink(ownerAppUserId, shareToken);
+        note.SetShareLink(shareToken);
 
         var noteRepository = Substitute.For<INoteRepository>();
         noteRepository.GetByShareTokenAsync(shareToken, Arg.Any<CancellationToken>()).Returns(note);
@@ -47,7 +47,7 @@ public class JoinNoteViaShareLinkCommandHandlerTests
         var joiningAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var shareToken = new ShareLinkToken(Guid.NewGuid().ToString());
-        note.SetShareLink(ownerAppUserId, shareToken);
+        note.SetShareLink(shareToken);
 
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(joiningAppUserId);

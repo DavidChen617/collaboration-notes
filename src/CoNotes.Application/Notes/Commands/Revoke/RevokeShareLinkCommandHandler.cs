@@ -17,16 +17,13 @@ internal sealed class RevokeShareLinkCommandHandler(
 
         var requestingAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
-        var revokeResult = note.RevokeShareLink(requestingAppUserId);
+        if (!note.IsOwnedBy(requestingAppUserId))
+            return new Error("Note.RevokeShareLink", "使用者沒有權限撤銷這篇筆記的分享連結!", ErrorType.BadRequest);
 
-        if (!revokeResult.IsSuccess)
-            return revokeResult.Error;
+        note.RevokeShareLink();
 
         var newShareToken = new ShareLinkToken(Guid.NewGuid().ToString());
-        var setResult = note.SetShareLink(requestingAppUserId, newShareToken);
-
-        if (!setResult.IsSuccess)
-            return setResult.Error;
+        note.SetShareLink(newShareToken);
 
         await noteRepository.UpdateAsync(note, cancellationToken);
 

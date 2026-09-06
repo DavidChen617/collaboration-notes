@@ -14,7 +14,10 @@ internal sealed class RemoveCollaboratorCommandHandler(
 
         var requestingAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
-        var result = note.RemoveCollaborator(requestingAppUserId, command.CollaboratorAppUserId);
+        if (!note.IsOwnedBy(requestingAppUserId))
+            return new Error("Note.RemoveCollaborator", "使用者沒有權限移除共編者!", ErrorType.BadRequest);
+
+        var result = note.RemoveCollaborator(command.CollaboratorAppUserId);
 
         if (!result.IsSuccess)
             return result.Error;

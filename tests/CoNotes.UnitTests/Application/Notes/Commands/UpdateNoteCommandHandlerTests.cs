@@ -32,6 +32,32 @@ public class UpdateNoteCommandHandlerTests
     }
 
     [Fact]
+    public async Task GivenCollaboratorUpdatesTheNote_WhenHandling_ThenAppliesTheUpdateAndReturnsIt()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var collaboratorAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Old title", "Old content", DateTime.UtcNow);
+        var shareToken = new ShareLinkToken(Guid.NewGuid().ToString());
+        note.SetShareLink(shareToken);
+        note.JoinViaShareLink(shareToken, collaboratorAppUserId);
+
+        var userContext = Substitute.For<IUserContext>();
+        userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(collaboratorAppUserId);
+
+        var noteRepository = Substitute.For<INoteRepository>();
+        noteRepository.GetByIdAsync(note.Id, Arg.Any<CancellationToken>()).Returns(note);
+
+        var handler = new UpdateNoteCommandHandler(userContext, noteRepository, TimeProvider.System);
+        var command = new UpdateNoteCommand(note.Id, "New title", "New content");
+
+        var result = await handler.HandleAsync(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("New title", result.Value.Title);
+        await noteRepository.Received(1).UpdateAsync(note, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task GivenNonOwnerUpdatesSomeoneElsesNote_WhenHandling_ThenIsRejectedAndDoesNotPersist()
     {
         var ownerAppUserId = Guid.NewGuid();

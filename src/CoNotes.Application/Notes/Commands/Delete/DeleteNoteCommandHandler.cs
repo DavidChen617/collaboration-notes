@@ -14,10 +14,10 @@ internal sealed class DeleteNoteCommandHandler(
 
         var requestingAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
-        var deleteResult = note.Delete(requestingAppUserId);
+        if (!note.IsOwnedBy(requestingAppUserId))
+            return new Error("Note.Delete", "使用者沒有權限刪除這篇筆記!", ErrorType.BadRequest);
 
-        if (!deleteResult.IsSuccess)
-            return deleteResult.Error;
+        note.Delete();
 
         await noteRepository.DeleteAsync(note, cancellationToken);
 

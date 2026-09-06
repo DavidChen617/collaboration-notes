@@ -66,54 +66,43 @@ public sealed class Note : AggregateRoot
     public bool IsAccessibleBy(Guid appUserId) =>
         appUserId == OwnerAppUserId || _collaboratorAppUserIds.Contains(appUserId);
 
-    public Result Update(Guid requestingAppUserId, string title, string content, DateTime nowUtc)
-    {
-        if (!IsAccessibleBy(requestingAppUserId))
-            return new Error("Note.Update", "使用者沒有權限更新這篇筆記!", ErrorType.BadRequest);
+    public bool IsOwnedBy(Guid appUserId) => appUserId == OwnerAppUserId;
 
+    public void Update(string title, string content, DateTime nowUtc)
+    {
         Title = title;
         Content = content;
         UpdatedOnUtc = nowUtc;
-
-        return Result.Success();
     }
 
     /// <summary>
     /// 設定這篇筆記的分享連結 token, 取代目前(若有)的 token。token 本身由呼叫者(Application 層)
     /// 產生好再傳進來——「怎麼產生一個不可猜測的值」是技術細節, 不是 Domain 該決定的事,
-    /// Domain 只驗證擁有權、記錄狀態、觸發事件。
+    /// Domain 只記錄狀態、觸發事件。擁有權檢查由呼叫端(Application 層)在呼叫前先做。
     /// </summary>
-    public Result SetShareLink(Guid requestingAppUserId, ShareLinkToken shareToken)
+    public void SetShareLink(ShareLinkToken shareToken)
     {
-        if (requestingAppUserId != OwnerAppUserId)
-            return new Error("Note.SetShareLink", "使用者沒有權限產生這篇筆記的分享連結!", ErrorType.BadRequest);
-
         ShareToken = shareToken;
 
         RaiseDomainEvent(new NoteShareLinkGeneratedDomainEvent(Id, shareToken));
-
-        return Result.Success();
     }
 
     /// <summary>
     /// 撤銷目前的分享連結(舊 token 立即失效)。只清掉連結本身, 不影響先前已透過連結加入的共編者;
     /// 若要立刻換發新連結, 呼叫端在這之後另外呼叫 <see cref="SetShareLink"/>。
     /// </summary>
-    public Result RevokeShareLink(Guid requestingAppUserId)
+    public void RevokeShareLink()
     {
-        if (requestingAppUserId != OwnerAppUserId)
-            return new Error("Note.RevokeShareLink", "使用者沒有權限撤銷這篇筆記的分享連結!", ErrorType.BadRequest);
-
         ShareToken = null;
 
         RaiseDomainEvent(new NoteShareLinkRevokedDomainEvent(Id));
-
-        return Result.Success();
     }
 
     /// <summary>
     /// 已登入使用者透過分享連結加入共編者名單。同一條連結被同一使用者重複開啟是 idempotent 的,
-    /// 不會重複加入或重複觸發事件;擁有者本人開啟自己的分享連結也是 no-op。
+    /// 不會重複加入或重複觸發事件;擁有者本人開啟自己的分享連結也是 no-op。這裡的 token 驗證
+    /// 是這個 Aggregate 自己狀態(目前有效的 <see cref="ShareToken"/>)的不變條件, 不是「誰在問」
+    /// 這種可以搬到 Application 層的存取控制, 所以留在 Domain。
     /// </summary>
     public Result JoinViaShareLink(ShareLinkToken shareToken, Guid joiningAppUserId)
     {
@@ -128,11 +117,8 @@ public sealed class Note : AggregateRoot
         return Result.Success();
     }
 
-    public Result RemoveCollaborator(Guid requestingAppUserId, Guid collaboratorAppUserId)
+    public Result RemoveCollaborator(Guid collaboratorAppUserId)
     {
-        if (requestingAppUserId != OwnerAppUserId)
-            return new Error("Note.RemoveCollaborator", "使用者沒有權限移除共編者!", ErrorType.BadRequest);
-
         if (!_collaboratorAppUserIds.Remove(collaboratorAppUserId))
             return new Error("Note.RemoveCollaborator", "該使用者不是這篇筆記的共編者!", ErrorType.NotFound);
 
@@ -165,13 +151,8 @@ public sealed class Note : AggregateRoot
         return Result.Success();
     }
 
-    public Result Delete(Guid requestingAppUserId)
+    public void Delete()
     {
-        if (requestingAppUserId != OwnerAppUserId)
-            return new Error("Note.Delete", "使用者沒有權限刪除這篇筆記!", ErrorType.BadRequest);
-
         RaiseDomainEvent(new NoteDeletedDomainEvent(Id));
-
-        return Result.Success();
     }
 }

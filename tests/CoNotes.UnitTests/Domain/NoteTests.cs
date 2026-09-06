@@ -24,31 +24,56 @@ public class NoteTests
     }
 
     [Fact]
-    public void GivenOwner_WhenUpdating_ThenSucceedsAndAppliesChanges()
+    public void GivenOwner_WhenCheckingOwnership_ThenTrue()
     {
         var ownerAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
-        var result = note.Update(ownerAppUserId, "New title", "New content", DateTime.UtcNow);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal("New title", note.Title);
-        Assert.Equal("New content", note.Content);
+        Assert.True(note.IsOwnedBy(ownerAppUserId));
     }
 
     [Fact]
-    public void GivenNonOwner_WhenUpdating_ThenFailsAndLeavesNoteUnchanged()
+    public void GivenNonOwner_WhenCheckingOwnership_ThenFalse()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var otherAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
-        var result = note.Update(otherAppUserId, "New title", "New content", DateTime.UtcNow);
+        Assert.False(note.IsOwnedBy(Guid.NewGuid()));
+    }
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal("Note.Update", result.Error.Code);
-        Assert.Equal("Title", note.Title);
-        Assert.Equal("Content", note.Content);
+    [Fact]
+    public void GivenOwnerOrCollaborator_WhenCheckingAccessibility_ThenTrue()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var collaboratorAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
+        var shareToken = CreateShareToken();
+        note.SetShareLink(shareToken);
+        note.JoinViaShareLink(shareToken, collaboratorAppUserId);
+
+        Assert.True(note.IsAccessibleBy(ownerAppUserId));
+        Assert.True(note.IsAccessibleBy(collaboratorAppUserId));
+    }
+
+    [Fact]
+    public void GivenUnrelatedUser_WhenCheckingAccessibility_ThenFalse()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
+
+        Assert.False(note.IsAccessibleBy(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void GivenValidInput_WhenUpdating_ThenAppliesChanges()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
+
+        note.Update("New title", "New content", DateTime.UtcNow);
+
+        Assert.Equal("New title", note.Title);
+        Assert.Equal("New content", note.Content);
     }
 
     [Fact]
@@ -113,61 +138,32 @@ public class NoteTests
     }
 
     [Fact]
-    public void GivenOwner_WhenDeleting_ThenSucceedsAndRaisesNoteDeletedEvent()
+    public void GivenValidInput_WhenDeleting_ThenRaisesNoteDeletedEvent()
     {
         var ownerAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
 
-        var result = note.Delete(ownerAppUserId);
+        note.Delete();
 
-        Assert.True(result.IsSuccess);
         var deletedEvent = Assert.IsType<NoteDeletedDomainEvent>(Assert.Single(
             note.DomainEvents, e => e is NoteDeletedDomainEvent));
         Assert.Equal(note.Id, deletedEvent.NoteId);
     }
 
     [Fact]
-    public void GivenNonOwner_WhenDeleting_ThenFails()
-    {
-        var ownerAppUserId = Guid.NewGuid();
-        var otherAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
-
-        var result = note.Delete(otherAppUserId);
-
-        Assert.False(result.IsSuccess);
-        Assert.Equal("Note.Delete", result.Error.Code);
-    }
-
-    [Fact]
-    public void GivenOwner_WhenSettingShareLink_ThenShareTokenStoredAndEventRaised()
+    public void GivenValidInput_WhenSettingShareLink_ThenShareTokenStoredAndEventRaised()
     {
         var ownerAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var shareToken = CreateShareToken();
 
-        var result = note.SetShareLink(ownerAppUserId, shareToken);
+        note.SetShareLink(shareToken);
 
-        Assert.True(result.IsSuccess);
         Assert.Equal(shareToken, note.ShareToken);
         var generatedEvent = Assert.IsType<NoteShareLinkGeneratedDomainEvent>(Assert.Single(
             note.DomainEvents, e => e is NoteShareLinkGeneratedDomainEvent));
         Assert.Equal(note.Id, generatedEvent.NoteId);
         Assert.Equal(shareToken, generatedEvent.ShareToken);
-    }
-
-    [Fact]
-    public void GivenNonOwner_WhenSettingShareLink_ThenRejected()
-    {
-        var ownerAppUserId = Guid.NewGuid();
-        var otherAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
-
-        var result = note.SetShareLink(otherAppUserId, CreateShareToken());
-
-        Assert.False(result.IsSuccess);
-        Assert.Equal("Note.SetShareLink", result.Error.Code);
-        Assert.Null(note.ShareToken);
     }
 
     [Fact]
@@ -177,12 +173,11 @@ public class NoteTests
         var collaboratorAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var oldToken = CreateShareToken();
-        note.SetShareLink(ownerAppUserId, oldToken);
+        note.SetShareLink(oldToken);
         note.JoinViaShareLink(oldToken, collaboratorAppUserId);
 
-        var result = note.RevokeShareLink(ownerAppUserId);
+        note.RevokeShareLink();
 
-        Assert.True(result.IsSuccess);
         Assert.Null(note.ShareToken);
         Assert.Contains(collaboratorAppUserId, note.CollaboratorAppUserIds);
 
@@ -197,7 +192,7 @@ public class NoteTests
         var joiningAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var shareToken = CreateShareToken();
-        note.SetShareLink(ownerAppUserId, shareToken);
+        note.SetShareLink(shareToken);
 
         var result = note.JoinViaShareLink(shareToken, joiningAppUserId);
 
@@ -210,13 +205,28 @@ public class NoteTests
     }
 
     [Fact]
+    public void GivenInvalidShareToken_WhenUserJoins_ThenRejected()
+    {
+        var ownerAppUserId = Guid.NewGuid();
+        var joiningAppUserId = Guid.NewGuid();
+        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
+        note.SetShareLink(CreateShareToken());
+
+        var result = note.JoinViaShareLink(CreateShareToken(), joiningAppUserId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Note.JoinViaShareLink", result.Error.Code);
+        Assert.DoesNotContain(joiningAppUserId, note.CollaboratorAppUserIds);
+    }
+
+    [Fact]
     public void GivenSameUserJoinsTwice_WhenUsingSameShareToken_ThenNoDuplicateOrExtraEvent()
     {
         var ownerAppUserId = Guid.NewGuid();
         var joiningAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var shareToken = CreateShareToken();
-        note.SetShareLink(ownerAppUserId, shareToken);
+        note.SetShareLink(shareToken);
         note.JoinViaShareLink(shareToken, joiningAppUserId);
 
         var result = note.JoinViaShareLink(shareToken, joiningAppUserId);
@@ -227,16 +237,16 @@ public class NoteTests
     }
 
     [Fact]
-    public void GivenOwner_WhenRemovingCollaborator_ThenRemovedAndEventRaised()
+    public void GivenExistingCollaborator_WhenRemovingCollaborator_ThenRemovedAndEventRaised()
     {
         var ownerAppUserId = Guid.NewGuid();
         var collaboratorAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var shareToken = CreateShareToken();
-        note.SetShareLink(ownerAppUserId, shareToken);
+        note.SetShareLink(shareToken);
         note.JoinViaShareLink(shareToken, collaboratorAppUserId);
 
-        var result = note.RemoveCollaborator(ownerAppUserId, collaboratorAppUserId);
+        var result = note.RemoveCollaborator(collaboratorAppUserId);
 
         Assert.True(result.IsSuccess);
         Assert.DoesNotContain(collaboratorAppUserId, note.CollaboratorAppUserIds);
@@ -247,36 +257,15 @@ public class NoteTests
     }
 
     [Fact]
-    public void GivenNonOwner_WhenRemovingCollaborator_ThenRejected()
+    public void GivenNotACollaborator_WhenRemovingCollaborator_ThenRejected()
     {
         var ownerAppUserId = Guid.NewGuid();
-        var collaboratorAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
-        var shareToken = CreateShareToken();
-        note.SetShareLink(ownerAppUserId, shareToken);
-        note.JoinViaShareLink(shareToken, collaboratorAppUserId);
 
-        var result = note.RemoveCollaborator(collaboratorAppUserId, collaboratorAppUserId);
+        var result = note.RemoveCollaborator(Guid.NewGuid());
 
         Assert.False(result.IsSuccess);
         Assert.Equal("Note.RemoveCollaborator", result.Error.Code);
-        Assert.Contains(collaboratorAppUserId, note.CollaboratorAppUserIds);
-    }
-
-    [Fact]
-    public void GivenCollaborator_WhenUpdating_ThenSucceeds()
-    {
-        var ownerAppUserId = Guid.NewGuid();
-        var collaboratorAppUserId = Guid.NewGuid();
-        var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
-        var shareToken = CreateShareToken();
-        note.SetShareLink(ownerAppUserId, shareToken);
-        note.JoinViaShareLink(shareToken, collaboratorAppUserId);
-
-        var result = note.Update(collaboratorAppUserId, "New title", "New content", DateTime.UtcNow);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal("New title", note.Title);
     }
 
     private static ShareLinkToken CreateShareToken() => new(Guid.NewGuid().ToString());

@@ -15,7 +15,7 @@ public class RevokeShareLinkCommandHandlerTests
         var collaboratorAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
         var oldToken = new ShareLinkToken(Guid.NewGuid().ToString());
-        note.SetShareLink(ownerAppUserId, oldToken);
+        note.SetShareLink(oldToken);
         note.JoinViaShareLink(oldToken, collaboratorAppUserId);
 
         var userContext = Substitute.For<IUserContext>();
@@ -42,7 +42,7 @@ public class RevokeShareLinkCommandHandlerTests
         var ownerAppUserId = Guid.NewGuid();
         var otherAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
-        note.SetShareLink(ownerAppUserId, new ShareLinkToken(Guid.NewGuid().ToString()));
+        note.SetShareLink(new ShareLinkToken(Guid.NewGuid().ToString()));
 
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(otherAppUserId);

@@ -42,7 +42,7 @@ public sealed class NoteRepositoryTests(IntegrationTestWebAppFactory factory)
         var note = NoteAggregate.Create(appUser.Id, "Title", "Content", DateTime.UtcNow);
         await noteRepository.AddAsync(note, CancellationToken.None);
 
-        note.Update(appUser.Id, "New title", "New content", DateTime.UtcNow);
+        note.Update("New title", "New content", DateTime.UtcNow);
         await noteRepository.UpdateAsync(note, CancellationToken.None);
 
         var reloaded = await noteRepository.GetByIdAsync(note.Id, CancellationToken.None);
@@ -65,7 +65,7 @@ public sealed class NoteRepositoryTests(IntegrationTestWebAppFactory factory)
         var note = NoteAggregate.Create(appUser.Id, "Title", "Content", DateTime.UtcNow);
         await noteRepository.AddAsync(note, CancellationToken.None);
 
-        note.Delete(appUser.Id);
+        note.Delete();
         await noteRepository.DeleteAsync(note, CancellationToken.None);
 
         var afterDelete = await noteRepository.GetByIdAsync(note.Id, CancellationToken.None);

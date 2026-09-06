@@ -18,10 +18,10 @@ internal sealed class UpdateNoteCommandHandler(
 
         var requestingAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
-        var updateResult = note.Update(requestingAppUserId, command.Title, command.Content, timeProvider.GetUtcNow().UtcDateTime);
+        if (!note.IsAccessibleBy(requestingAppUserId))
+            return new Error("Note.Update", "使用者沒有權限更新這篇筆記!", ErrorType.BadRequest);
 
-        if (!updateResult.IsSuccess)
-            return updateResult.Error;
+        note.Update(command.Title, command.Content, timeProvider.GetUtcNow().UtcDateTime);
 
         var requestedTargetNoteIds = NoteLinkContentParser.ExtractLinkedNoteIds(command.Content);
         var ownedTargetNoteIds = await noteRepository.FindOwnedNoteIdsAsync(requestingAppUserId, requestedTargetNoteIds, cancellationToken);
