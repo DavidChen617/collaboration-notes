@@ -13,6 +13,14 @@ data:
       "enabled": true,
       "sslRequired": "external",
       "registrationAllowed": false,
+      "roles": {
+        "realm": [
+          {
+            "name": "admin",
+            "description": "系統管理者, 可以手動撤銷使用者的訂閱等級(subscription-billing change)"
+          }
+        ]
+      },
       "clients": [
         {
           "clientId": "conotes-spa",

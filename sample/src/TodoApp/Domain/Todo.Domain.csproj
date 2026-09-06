@@ -1,8 +1,0 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-  <ItemGroup>
-    <PackageReference Include="Davish.Result" />
-    <PackageReference Include="Davish.SharedKernel" />
-  </ItemGroup>
-
-</Project>

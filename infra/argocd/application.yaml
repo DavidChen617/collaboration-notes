@@ -12,6 +12,11 @@ spec:
     path: infra/k8s
     directory:
       recurse: true
+      # keycloak/realm-export/conotes-realm.json 是給本機 docker-compose 掛載用的來源檔,
+      # 不是 k8s manifest(沒有 kind 欄位) —— ArgoCD 遞迴掃描目錄時會把它當成
+      # manifest 嘗試解析、直接讓整個 Application 的 comparison 失敗。真正給叢集用的版本是
+      # keycloak/configmap-realm-import.yaml(手動保持內容同步, 見該檔案開頭的註解)。
+      exclude: "keycloak/realm-export/*"
 
   destination:
     server: https://kubernetes.default.svc
