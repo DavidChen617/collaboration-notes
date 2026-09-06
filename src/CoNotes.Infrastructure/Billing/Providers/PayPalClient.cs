@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace CoNotes.Infrastructure.Billing.Providers;
 
@@ -11,7 +12,11 @@ namespace CoNotes.Infrastructure.Billing.Providers;
 /// 每次呼叫都重新用 client-credentials 換一次 access token——這個專案量體小,
 /// 不特別做 token 快取。
 /// </summary>
-internal sealed class PayPalClient(HttpClient httpClient, IConfiguration configuration) : IPayPalClient
+internal sealed class PayPalClient(
+    HttpClient httpClient,
+    IConfiguration configuration,
+    ILogger<PayPalClient> logger
+) : IPayPalClient
 {
     public async Task<PayPalOrder> CreateOrderAsync(
         PlanTier planTier,
@@ -64,13 +69,27 @@ internal sealed class PayPalClient(HttpClient httpClient, IConfiguration configu
             $"{baseUrl}/v2/checkout/orders/{orderId}/capture"
         );
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        // Capture 這個 endpoint 沒有需要帶的欄位, 但 PayPal 仍然要求明確宣告
+        // Content-Type: application/json, 完全不帶 body/header 會被拒絕(415 UNSUPPORTED_MEDIA_TYPE)。
+        request.Content = JsonContent.Create(new { });
 
         using var response = await httpClient.SendAsync(request, ct);
 
         // 使用者還沒核准、訂單已經 capture 過、或其他任何非成功狀態, 一律視為「這次沒有真的
-        // 完成付款」, 不拋例外——呼叫端(Api endpoint)決定要怎麼回應使用者。
+        // 完成付款」, 不拋例外——呼叫端(Api endpoint)決定要怎麼回應使用者。但把 PayPal 實際
+        // 回傳的內容記下來, 不然「為什麼這次 capture 沒過」完全無法排查。
         if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            logger.LogWarning(
+                "PayPal capture 失敗, orderId={OrderId}, status={StatusCode}, body={Body}",
+                orderId,
+                response.StatusCode,
+                errorBody
+            );
+
             return new PayPalCaptureResult(IsCompleted: false, PlanTier.Free);
+        }
 
         var capture = await response.Content.ReadFromJsonAsync<CaptureOrderResponse>(cancellationToken: ct);
         var customId = capture?.PurchaseUnits?.FirstOrDefault()?.Payments?.Captures?.FirstOrDefault()?.CustomId;
