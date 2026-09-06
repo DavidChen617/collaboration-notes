@@ -12,7 +12,7 @@ public sealed class Note : AggregateRoot
     public string Content { get; private set; } = string.Empty;
     public DateTime CreatedOnUtc { get; private set; }
     public DateTime UpdatedOnUtc { get; private set; }
-    public Guid? ShareToken { get; private set; }
+    public ShareLinkToken? ShareToken { get; private set; }
     public IReadOnlyCollection<Guid> LinkedNoteIds => _linkedNoteIds;
     public IReadOnlyCollection<Guid> CollaboratorAppUserIds => _collaboratorAppUserIds;
 
@@ -24,7 +24,7 @@ public sealed class Note : AggregateRoot
         DateTime createdAt,
         DateTime updatedAt,
         IEnumerable<Guid>? linkedNoteIds = null,
-        Guid? shareToken = null,
+        ShareLinkToken? shareToken = null,
         IEnumerable<Guid>? collaboratorAppUserIds = null
     )
     {
@@ -56,7 +56,7 @@ public sealed class Note : AggregateRoot
         DateTime createdAt,
         DateTime updatedAt,
         IEnumerable<Guid>? linkedNoteIds = null,
-        Guid? shareToken = null,
+        ShareLinkToken? shareToken = null,
         IEnumerable<Guid>? collaboratorAppUserIds = null
     )
     {
@@ -79,48 +79,43 @@ public sealed class Note : AggregateRoot
     }
 
     /// <summary>
-    /// 產生一條新的分享連結 token, 取代目前(若有)的 token。ShareToken 是安全憑證,
-    /// 需要完整的隨機性以避免被猜到, 所以用 <see cref="Guid.NewGuid"/>(v4, 122 bits 亂數)
-    /// 而不是這個專案其他 Aggregate ID 慣用的 <see cref="Guid.CreateVersion7"/>
-    /// (v7 會編碼時間戳記, 拿來當分享 token 會洩漏建立時間、也減少可用的亂數位元)。
+    /// 設定這篇筆記的分享連結 token, 取代目前(若有)的 token。token 本身由呼叫者(Application 層)
+    /// 產生好再傳進來——「怎麼產生一個不可猜測的值」是技術細節, 不是 Domain 該決定的事,
+    /// Domain 只驗證擁有權、記錄狀態、觸發事件。
     /// </summary>
-    public Result<Guid> GenerateShareLink(Guid requestingAppUserId)
+    public Result SetShareLink(Guid requestingAppUserId, ShareLinkToken shareToken)
     {
         if (requestingAppUserId != OwnerAppUserId)
-            return new Error("Note.GenerateShareLink", "使用者沒有權限產生這篇筆記的分享連結!", ErrorType.BadRequest);
+            return new Error("Note.SetShareLink", "使用者沒有權限產生這篇筆記的分享連結!", ErrorType.BadRequest);
 
-        var token = Guid.NewGuid();
-        ShareToken = token;
+        ShareToken = shareToken;
 
-        RaiseDomainEvent(new NoteShareLinkGeneratedDomainEvent(Id, token));
+        RaiseDomainEvent(new NoteShareLinkGeneratedDomainEvent(Id, shareToken));
 
-        return token;
+        return Result.Success();
     }
 
     /// <summary>
-    /// 撤銷目前的分享連結(舊 token 立即失效), 並立刻產生一條新的有效連結。
-    /// 只影響連結本身, 不影響先前已透過連結加入的共編者。
+    /// 撤銷目前的分享連結(舊 token 立即失效)。只清掉連結本身, 不影響先前已透過連結加入的共編者;
+    /// 若要立刻換發新連結, 呼叫端在這之後另外呼叫 <see cref="SetShareLink"/>。
     /// </summary>
-    public Result<Guid> RevokeShareLink(Guid requestingAppUserId)
+    public Result RevokeShareLink(Guid requestingAppUserId)
     {
         if (requestingAppUserId != OwnerAppUserId)
             return new Error("Note.RevokeShareLink", "使用者沒有權限撤銷這篇筆記的分享連結!", ErrorType.BadRequest);
 
+        ShareToken = null;
+
         RaiseDomainEvent(new NoteShareLinkRevokedDomainEvent(Id));
 
-        var token = Guid.NewGuid();
-        ShareToken = token;
-
-        RaiseDomainEvent(new NoteShareLinkGeneratedDomainEvent(Id, token));
-
-        return token;
+        return Result.Success();
     }
 
     /// <summary>
     /// 已登入使用者透過分享連結加入共編者名單。同一條連結被同一使用者重複開啟是 idempotent 的,
     /// 不會重複加入或重複觸發事件;擁有者本人開啟自己的分享連結也是 no-op。
     /// </summary>
-    public Result JoinViaShareLink(Guid shareToken, Guid joiningAppUserId)
+    public Result JoinViaShareLink(ShareLinkToken shareToken, Guid joiningAppUserId)
     {
         if (ShareToken is null || ShareToken != shareToken)
             return new Error("Note.JoinViaShareLink", "分享連結無效或已失效!", ErrorType.BadRequest);

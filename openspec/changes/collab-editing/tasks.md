@@ -1,6 +1,8 @@
 ## 1. Domain
 
-> `ShareToken` 用 `Guid.NewGuid()`(v4 全亂數)產生, 不是這個專案 Aggregate ID 慣用的 `Guid.CreateVersion7()`——v7 會編碼時間戳記, 拿來當安全憑證會洩漏建立時間、也減少可用亂數位元, 細節見 `Note.GenerateShareLink` 的 doc comment。`RevokeShareLink` 撤銷舊 token 後會立刻產生新 token(對應 spec 的「撤銷後 SHALL 產生新的有效連結」), 一次呼叫觸發 `NoteShareLinkRevoked` + `NoteShareLinkGenerated` 兩個事件。新增 `Note.IsAccessibleBy(appUserId)`(擁有者或共編者), `Update` 的存取檢查改用這個方法。
+> `ShareToken` 型別是 `ShareLinkToken`(Domain Value Object, 包一個非空字串, 建構子擋 null/空字串)——之前的版本讓 `Note.GenerateShareLink` 自己用 `Guid.NewGuid()` 產生 token, 後來討論後改掉: 「怎麼產生一個不可猜測的值」是技術細節, 不該由 Domain 決定; Domain 只接收已經產生好的 `ShareLinkToken`、驗證擁有權、記錄狀態、觸發事件。方法也從 `GenerateShareLink(requestingAppUserId)`(自己生成並回傳 token)改名為 `SetShareLink(requestingAppUserId, shareToken)`(純狀態轉換, 不回傳值);`Guid.NewGuid().ToString()` 的產生動作搬到 Application 層的 Command Handler。`RevokeShareLink` 現在只清掉舊 token、觸發 `NoteShareLinkRevoked`, 不再自己生成替代 token——要立刻換發新連結(對應 spec 的「撤銷後 SHALL 產生新的有效連結」), 由 `RevokeShareLinkCommandHandler` 呼叫完 `RevokeShareLink` 後, 自己生成新 token 再呼叫一次 `SetShareLink`, 兩次呼叫作用在同一個記憶體中的 aggregate 實例, 最後一次 `UpdateAsync` 落地。`notes.share_token` 欄位型別也從 `uuid` 改成 `text`, 呼應「Domain 不假設 token 是 GUID 格式」。新增 `Note.IsAccessibleBy(appUserId)`(擁有者或共編者), `Update` 的存取檢查改用這個方法。
+>
+> 這裡還有一個尚未定案、之後可能會再改的討論:`Update`／`Delete`／`SetShareLink`／`RevokeShareLink`／`RemoveCollaborator`／`JoinViaShareLink` 目前都在 Domain 方法內部直接比對 `requestingAppUserId` 做擁有權檢查——之後可能會把這個檢查整個搬到 Application 層(Handler 呼叫前先用 `IsAccessibleBy`/擁有者判斷守門, Domain 方法本身不再吃 actor 參數), 純化 Domain 方法為單純的狀態轉換。這次先不動, 只先落實 token 生成搬出 Domain 這一項。
 
 - [x] 1.1 在 `CoNotes.Domain` 的 `Note` Aggregate 上新增分享連結／共編者名單相關的不變條件（產生/撤銷 `ShareToken`、加入/移除共編者，且只有擁有者能操作），補上 `NoteShareLinkGenerated`／`NoteShareLinkRevoked`／`NoteCollaboratorJoined`／`NoteCollaboratorRemoved` Domain Event 定義
 - [x] 1.2 單元測試（NSubstitute，`GivenXXX_WhenXXX_ThenXXX`）：`GivenOwner_WhenGeneratingShareLink_ThenShareTokenCreatedAndEventRaised`、`GivenNonOwner_WhenGeneratingShareLink_ThenRejected`

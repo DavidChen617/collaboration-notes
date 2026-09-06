@@ -35,11 +35,11 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         return await RehydrateAsync(gridReader);
     }
 
-    public async Task<NoteAggregate?> GetByShareTokenAsync(Guid shareToken, CancellationToken ct)
+    public async Task<NoteAggregate?> GetByShareTokenAsync(ShareLinkToken shareToken, CancellationToken ct)
     {
         var connection = await appDbContext.GetDbConnectionAsync(ct);
 
-        var param = new { ShareToken = shareToken };
+        var param = new { ShareToken = shareToken.Value };
 
         var sql = $"""
             select
@@ -76,21 +76,34 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         if (row is null)
             return null;
 
+        var shareToken = row.ShareToken is null ? null : new ShareLinkToken(row.ShareToken);
+
         return NoteAggregate.Rehydrate(
             row.Id, row.OwnerAppUserId, row.Title, row.Content, row.CreatedOnUtc, row.UpdatedOnUtc,
-            [.. linkedNoteIds], row.ShareToken, [.. collaboratorAppUserIds]);
+            [.. linkedNoteIds], shareToken, [.. collaboratorAppUserIds]);
     }
 
     public async Task<Result> AddAsync(NoteAggregate note, CancellationToken ct)
     {
+        var param = new
+        {
+            note.Id,
+            note.OwnerAppUserId,
+            note.Title,
+            note.Content,
+            note.CreatedOnUtc,
+            note.UpdatedOnUtc,
+            ShareToken = note.ShareToken?.Value,
+        };
+
         var cmd = new CommandDefinition(
             $"""
             insert into notes (id, owner_app_user_id, title, content, created_at, updated_at, share_token)
-            values (@{nameof(note.Id)}, @{nameof(note.OwnerAppUserId)}, @{nameof(note.Title)},
-                    @{nameof(note.Content)}, @{nameof(note.CreatedOnUtc)}, @{nameof(note.UpdatedOnUtc)},
-                    @{nameof(note.ShareToken)});
+            values (@{nameof(param.Id)}, @{nameof(param.OwnerAppUserId)}, @{nameof(param.Title)},
+                    @{nameof(param.Content)}, @{nameof(param.CreatedOnUtc)}, @{nameof(param.UpdatedOnUtc)},
+                    @{nameof(param.ShareToken)});
             """,
-            note,
+            param,
             cancellationToken: ct,
             transaction: appDbContext.Transaction);
 
@@ -108,16 +121,25 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
 
     public async Task<Result> UpdateAsync(NoteAggregate note, CancellationToken ct)
     {
+        var param = new
+        {
+            note.Id,
+            note.Title,
+            note.Content,
+            note.UpdatedOnUtc,
+            ShareToken = note.ShareToken?.Value,
+        };
+
         var cmd = new CommandDefinition(
             $"""
             update notes
-            set title = @{nameof(note.Title)},
-                content = @{nameof(note.Content)},
-                updated_at = @{nameof(note.UpdatedOnUtc)},
-                share_token = @{nameof(note.ShareToken)}
-            where id = @{nameof(note.Id)};
+            set title = @{nameof(param.Title)},
+                content = @{nameof(param.Content)},
+                updated_at = @{nameof(param.UpdatedOnUtc)},
+                share_token = @{nameof(param.ShareToken)}
+            where id = @{nameof(param.Id)};
             """,
-            note,
+            param,
             cancellationToken: ct,
             transaction: appDbContext.Transaction);
 
@@ -241,6 +263,6 @@ internal sealed class NoteRepository(AppDbContext appDbContext) : INoteRepositor
         string Content,
         DateTime CreatedOnUtc,
         DateTime UpdatedOnUtc,
-        Guid? ShareToken
+        string? ShareToken
     );
 }

@@ -26,8 +26,8 @@ public class GenerateShareLinkCommandHandlerTests
         var result = await handler.HandleAsync(command, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.NotEqual(Guid.Empty, result.Value.ShareToken);
-        Assert.Equal(note.ShareToken, result.Value.ShareToken);
+        Assert.False(string.IsNullOrEmpty(result.Value.ShareToken));
+        Assert.Equal(note.ShareToken?.Value, result.Value.ShareToken);
         await noteRepository.Received(1).UpdateAsync(note, Arg.Any<CancellationToken>());
     }
 
@@ -50,7 +50,7 @@ public class GenerateShareLinkCommandHandlerTests
         var result = await handler.HandleAsync(command, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("Note.GenerateShareLink", result.Error.Code);
+        Assert.Equal("Note.SetShareLink", result.Error.Code);
         await noteRepository.DidNotReceive().UpdateAsync(Arg.Any<NoteAggregate>(), Arg.Any<CancellationToken>());
     }
 }

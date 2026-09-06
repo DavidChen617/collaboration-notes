@@ -16,14 +16,15 @@ internal sealed class GenerateShareLinkCommandHandler(
             return new Error("Note.GenerateShareLink", "找不到筆記!", ErrorType.NotFound);
 
         var requestingAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
+        var shareToken = new ShareLinkToken(Guid.NewGuid().ToString());
 
-        var result = note.GenerateShareLink(requestingAppUserId);
+        var result = note.SetShareLink(requestingAppUserId, shareToken);
 
         if (!result.IsSuccess)
             return result.Error;
 
         await noteRepository.UpdateAsync(note, cancellationToken);
 
-        return new GenerateShareLinkDto(result.Value);
+        return new GenerateShareLinkDto(shareToken.Value);
     }
 }

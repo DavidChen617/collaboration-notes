@@ -1,4 +1,4 @@
-alter table notes add column share_token uuid;
+alter table notes add column share_token text;
 
 create unique index ux_notes_share_token on notes(share_token) where share_token is not null;
 

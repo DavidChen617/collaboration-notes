@@ -15,7 +15,8 @@ public class JoinNoteViaShareLinkCommandHandlerTests
         var firstJoiningAppUserId = Guid.NewGuid();
         var secondJoiningAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
-        var shareToken = note.GenerateShareLink(ownerAppUserId).Value;
+        var shareToken = new ShareLinkToken(Guid.NewGuid().ToString());
+        note.SetShareLink(ownerAppUserId, shareToken);
 
         var noteRepository = Substitute.For<INoteRepository>();
         noteRepository.GetByShareTokenAsync(shareToken, Arg.Any<CancellationToken>()).Returns(note);
@@ -28,7 +29,7 @@ public class JoinNoteViaShareLinkCommandHandlerTests
         secondUserContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(secondJoiningAppUserId);
         var secondHandler = new JoinNoteViaShareLinkCommandHandler(secondUserContext, noteRepository);
 
-        var command = new JoinNoteViaShareLinkCommand(shareToken);
+        var command = new JoinNoteViaShareLinkCommand(shareToken.Value);
 
         var firstResult = await firstHandler.HandleAsync(command, CancellationToken.None);
         var secondResult = await secondHandler.HandleAsync(command, CancellationToken.None);
@@ -45,7 +46,8 @@ public class JoinNoteViaShareLinkCommandHandlerTests
         var ownerAppUserId = Guid.NewGuid();
         var joiningAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
-        var shareToken = note.GenerateShareLink(ownerAppUserId).Value;
+        var shareToken = new ShareLinkToken(Guid.NewGuid().ToString());
+        note.SetShareLink(ownerAppUserId, shareToken);
 
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(joiningAppUserId);
@@ -54,7 +56,7 @@ public class JoinNoteViaShareLinkCommandHandlerTests
         noteRepository.GetByShareTokenAsync(shareToken, Arg.Any<CancellationToken>()).Returns(note);
 
         var handler = new JoinNoteViaShareLinkCommandHandler(userContext, noteRepository);
-        var command = new JoinNoteViaShareLinkCommand(shareToken);
+        var command = new JoinNoteViaShareLinkCommand(shareToken.Value);
 
         await handler.HandleAsync(command, CancellationToken.None);
         var result = await handler.HandleAsync(command, CancellationToken.None);
@@ -67,13 +69,13 @@ public class JoinNoteViaShareLinkCommandHandlerTests
     public async Task GivenInvalidOrRevokedShareToken_WhenJoining_ThenIsRejected()
     {
         var joiningAppUserId = Guid.NewGuid();
-        var shareToken = Guid.NewGuid();
+        var shareToken = Guid.NewGuid().ToString();
 
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(joiningAppUserId);
 
         var noteRepository = Substitute.For<INoteRepository>();
-        noteRepository.GetByShareTokenAsync(shareToken, Arg.Any<CancellationToken>()).Returns((NoteAggregate?)null);
+        noteRepository.GetByShareTokenAsync(Arg.Any<ShareLinkToken>(), Arg.Any<CancellationToken>()).Returns((NoteAggregate?)null);
 
         var handler = new JoinNoteViaShareLinkCommandHandler(userContext, noteRepository);
         var command = new JoinNoteViaShareLinkCommand(shareToken);

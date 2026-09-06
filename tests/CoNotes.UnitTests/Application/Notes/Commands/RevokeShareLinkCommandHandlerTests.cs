@@ -14,7 +14,8 @@ public class RevokeShareLinkCommandHandlerTests
         var ownerAppUserId = Guid.NewGuid();
         var collaboratorAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
-        var oldToken = note.GenerateShareLink(ownerAppUserId).Value;
+        var oldToken = new ShareLinkToken(Guid.NewGuid().ToString());
+        note.SetShareLink(ownerAppUserId, oldToken);
         note.JoinViaShareLink(oldToken, collaboratorAppUserId);
 
         var userContext = Substitute.For<IUserContext>();
@@ -29,8 +30,8 @@ public class RevokeShareLinkCommandHandlerTests
         var result = await handler.HandleAsync(command, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.NotEqual(oldToken, result.Value.ShareToken);
-        Assert.Equal(note.ShareToken, result.Value.ShareToken);
+        Assert.NotEqual(oldToken.Value, result.Value.ShareToken);
+        Assert.Equal(note.ShareToken?.Value, result.Value.ShareToken);
         Assert.Contains(collaboratorAppUserId, note.CollaboratorAppUserIds);
         await noteRepository.Received(1).UpdateAsync(note, Arg.Any<CancellationToken>());
     }
@@ -41,7 +42,7 @@ public class RevokeShareLinkCommandHandlerTests
         var ownerAppUserId = Guid.NewGuid();
         var otherAppUserId = Guid.NewGuid();
         var note = NoteAggregate.Create(ownerAppUserId, "Title", "Content", DateTime.UtcNow);
-        note.GenerateShareLink(ownerAppUserId);
+        note.SetShareLink(ownerAppUserId, new ShareLinkToken(Guid.NewGuid().ToString()));
 
         var userContext = Substitute.For<IUserContext>();
         userContext.GetAppUserIdAsync(Arg.Any<CancellationToken>()).Returns(otherAppUserId);

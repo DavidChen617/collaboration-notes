@@ -17,13 +17,19 @@ internal sealed class RevokeShareLinkCommandHandler(
 
         var requestingAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
-        var result = note.RevokeShareLink(requestingAppUserId);
+        var revokeResult = note.RevokeShareLink(requestingAppUserId);
 
-        if (!result.IsSuccess)
-            return result.Error;
+        if (!revokeResult.IsSuccess)
+            return revokeResult.Error;
+
+        var newShareToken = new ShareLinkToken(Guid.NewGuid().ToString());
+        var setResult = note.SetShareLink(requestingAppUserId, newShareToken);
+
+        if (!setResult.IsSuccess)
+            return setResult.Error;
 
         await noteRepository.UpdateAsync(note, cancellationToken);
 
-        return new RevokeShareLinkDto(result.Value);
+        return new RevokeShareLinkDto(newShareToken.Value);
     }
 }

@@ -10,14 +10,19 @@ internal sealed class JoinNoteViaShareLinkCommandHandler(
         CancellationToken cancellationToken
     )
     {
-        var note = await noteRepository.GetByShareTokenAsync(command.ShareToken, cancellationToken);
+        if (string.IsNullOrEmpty(command.ShareToken))
+            return new Error("Note.JoinViaShareLink", "分享連結無效或已失效!", ErrorType.BadRequest);
+
+        var shareToken = new ShareLinkToken(command.ShareToken);
+
+        var note = await noteRepository.GetByShareTokenAsync(shareToken, cancellationToken);
 
         if (note is null)
             return new Error("Note.JoinViaShareLink", "分享連結無效或已失效!", ErrorType.BadRequest);
 
         var joiningAppUserId = await userContext.GetAppUserIdAsync(cancellationToken);
 
-        var result = note.JoinViaShareLink(command.ShareToken, joiningAppUserId);
+        var result = note.JoinViaShareLink(shareToken, joiningAppUserId);
 
         if (!result.IsSuccess)
             return result.Error;
