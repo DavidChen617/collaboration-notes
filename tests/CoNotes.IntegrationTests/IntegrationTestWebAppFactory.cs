@@ -15,6 +15,8 @@ public sealed class IntegrationTestWebAppFactory : WebApplicationFactory<Program
         .WithPassword("password")
         .Build();
 
+    public string ConnectionString => _dbContainer.GetConnectionString();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:DefaultConnection", _dbContainer.GetConnectionString());

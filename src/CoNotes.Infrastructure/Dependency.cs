@@ -17,6 +17,7 @@ public static class Dependency
             services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
             services.AddScoped<IAppUserRepository, AppUserRepository>();
             services.AddScoped<INoteRepository, NoteRepository>();
+            services.AddScoped<INoteEditHistoryStore, NoteEditHistoryStore>();
             services.AddScoped<IUserContext, UserContext>();
 
             services.AddScoped<IAggregateRootChangeTracker, AggregateRootChangeTracker>();

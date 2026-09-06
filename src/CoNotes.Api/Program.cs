@@ -1,3 +1,4 @@
+using CoNotes.Api.Hubs;
 using CoNotes.Application;
 using CoNotes.Application.AppUsers.Commands.Upsert;
 using CoNotes.Infrastructure;
@@ -11,7 +12,8 @@ builder.Services
     .AddCustomResultErrorTypeMap()
     .AddProblemDetailConfiguration()
     .AddAuthenticationConfiguration(builder.Configuration, builder.Environment)
-    .AddCorsConfiguration(builder.Configuration);
+    .AddCorsConfiguration(builder.Configuration)
+    .AddSignalRConfiguration(builder.Configuration, builder.Environment);
 
 builder.AddOpenTelemetryConfiguration();
 
@@ -43,6 +45,7 @@ app.MapPost("/api/test/app-user", async (ISender sender, HttpContext httpContext
 .RequireAuthorization();
 
 app.MapEndpoints();
+app.MapHub<NoteCollabHub>("/hubs/notes");
 
 app.Run();
 

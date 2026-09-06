@@ -23,11 +23,13 @@
 
 - [x] 3.1 撰寫 migration 新增 `NoteCollaborator` table（`NoteId`、`AppUserId` 皆為外鍵，組合唯一）與 `Note` 的 `ShareToken` 欄位（`share_token` 欄位加了 partial unique index, 允許多列是 null、但已產生的 token 不能重複）
 - [x] 3.2 撰寫 migration 新增筆記的 Yjs 更新紀錄 table（append-only，含序號）與快照 table；驗證以上 migration 的 down 都能正確移除對應 table／欄位（`migrate down 2` 之後 `migrate`(up)重新套用, 全部正常）
-- [ ] 3.3 建立獨立的 SignalR Hub，以 `NoteId` 當 Group，加入前執行跟 REST API 一致的存取檢查（擁有者或共編者）
-- [ ] 3.4 實作接收 Yjs update 後直接轉發給同一 Group 其他連線的邏輯，並將 update 附加寫入更新紀錄 table
-- [ ] 3.5 實作存檔時檢查更新紀錄筆數，超過門檻就合併成快照、清除已合併的舊更新紀錄
-- [ ] 3.6 Testcontainers 整合測試：`GivenShareTokenAndCollaboratorRows_WhenQueried_ThenAccessCheckMatchesOwnerOrCollaborator`、`GivenSnapshotAndSubsequentUpdates_WhenReplayed_ThenReconstructsContentAtGivenPoint`
-- [ ] 3.7 驗證 SignalR 透過既有 Redis backplane 運作（啟動兩個 API replica，確認不同 replica 上的連線仍能收到彼此的 update）
+> 3.5 的壓縮:「把目前狀態合併成快照」需要先合併 Yjs binary update, 但 design.md decision 1 明講 server 不理解 Yjs 的合併語義。跟使用者確認過, 採用「client 主動上傳快照」:`NoteCollabHub.SendUpdateAsync` 每次 append 完更新紀錄後, 若累積筆數超過門檻(`NoteEditHistoryStore.CompactionThreshold`, 目前 200), 會透過 `Clients.Caller.SendAsync("SnapshotRequested", noteId)` 請發送這次 update 的那個 client 用 Yjs 自己的 `Y.encodeStateAsUpdate(doc)` 算出完整合併狀態, 再呼叫新的 `SaveSnapshotAsync(noteId, snapshot)` 上傳; server 端只負責存起來、刪除已被涵蓋的舊 `note_updates` 列, 全程不碰 Yjs 的二進位內容語義。前端這段串接見 5.1/5.4。
+
+- [x] 3.3 建立獨立的 SignalR Hub，以 `NoteId` 當 Group，加入前執行跟 REST API 一致的存取檢查（擁有者或共編者）（`NoteCollabHub.JoinNoteAsync`，`[Authorize]` + `Note.IsAccessibleBy`；JWT 透過 query string `access_token` 帶入，因為瀏覽器的 WebSocket 交握無法帶自訂 header，見 `AuthenticationConfiguration.OnMessageReceived`）
+- [x] 3.4 實作接收 Yjs update 後直接轉發給同一 Group 其他連線的邏輯，並將 update 附加寫入更新紀錄 table（`NoteCollabHub.SendUpdateAsync` → `Clients.OthersInGroup` 轉發 + `INoteEditHistoryStore.AppendUpdateAsync` 寫入；序號用 `coalesce(max(sequence_number),0)+1` 算，玩具規模下接受這裡有極小的並行競爭風險，未加額外鎖）
+- [x] 3.5 實作存檔時檢查更新紀錄筆數，超過門檻就合併成快照、清除已合併的舊更新紀錄（見上方說明；`NoteEditHistoryStore.SaveSnapshotAsync` 用一個 DB transaction 包住「寫入快照 + 刪除被涵蓋的舊 update 列」）
+- [x] 3.6 Testcontainers 整合測試：`GivenShareTokenAndCollaboratorRows_WhenQueried_ThenAccessCheckMatchesOwnerOrCollaborator`、`GivenSnapshotAndSubsequentUpdates_WhenReplayed_ThenReconstructsContentAtGivenPoint`（`tests/CoNotes.IntegrationTests/NoteCollaborationTests.cs`；過程中發現並修正一個真的 bug：`AppendUpdateAsync` 原本只看 `note_updates` 表算下一個序號，壓縮把該表清空後序號會從頭算起、跟 `note_snapshots` 記錄的 cutoff 撞號，已改成同時比較兩張表的最大序號）
+- [x] 3.7 驗證 SignalR 透過既有 Redis backplane 運作（啟動兩個 API replica，確認不同 replica 上的連線仍能收到彼此的 update）（`tests/CoNotes.IntegrationTests/NoteCollabHubReplicaTests.cs`：真的用 `WebApplicationFactory<Program>` 啟動兩個獨立 host、都接本機 `docker-compose` 的 Redis，連到 replica 1 的 SignalR 連線送出 update，連到 replica 2 的連線確實收到，證明轉發真的走 Redis、不是侷限在單一 process 記憶體內。放進 `CoNotes.IntegrationTests`（而不是 `CoNotes.FunctionalTests`）是因為 `Davish.Result` 的 `ResultHttpOptions` 是 process-wide、只能設定一次——`FunctionalTests` 專案的其他測試已經啟動過一個 host 並處理過請求，這裡再啟動兩個新 host 會直接噴 `ResultHttpOptionsLockedException`；`IntegrationTests` 裡其他測試都只透過 `ISender` 直接呼叫、從未真的送出 HTTP request，所以不會撞到這個鎖。另外因為 `IntegrationTestWebAppFactory` 把 `IUserContext` 換成固定回傳值的 `TestUserContext`（給其他不經 HTTP 的測試用），這裡兩個 replica 各自换回真正的 `UserContext`，才能讓兩邊都從同一個 JWT 解析出同一個 AppUserId）
 
 ## 4. Api
 

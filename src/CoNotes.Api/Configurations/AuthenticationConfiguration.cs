@@ -39,6 +39,18 @@ internal static class AuthenticationConfiguration
                             var sender = context.HttpContext.RequestServices.GetRequiredService<ISender>();
                             await sender.SendAsync(new UpsertAppUserCommand(keycloakSub), context.HttpContext.RequestAborted);
                         },
+                        // 瀏覽器的 WebSocket 交握沒辦法帶自訂的 Authorization header, 所以 SignalR 連線
+                        // 改用 query string 的 access_token 帶 JWT; 只在打 /hubs 底下的路徑時才這樣讀,
+                        // 其他一般 REST API 呼叫還是照舊只認 Authorization header。
+                        OnMessageReceived = context =>
+                        {
+                            var accessToken = context.Request.Query["access_token"];
+
+                            if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                                context.Token = accessToken;
+
+                            return Task.CompletedTask;
+                        },
                     };
                 });
 

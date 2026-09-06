@@ -22,7 +22,7 @@
 - **共用同一個 Postgres instance**：`app`、`keycloak` 是同一個 instance 上的兩個獨立 database，不是獨立 instance；這個 instance 掛掉會同時拖垮登入跟 App 資料。用獨立 database（不是 schema）保留了之後切到獨立 instance 的路徑。
 - **所有 Secret 都是明碼佔位密碼**：這是玩具/學習專案，`stringData` 直接寫死方便重建環境；正式使用前必須替換。
 - **沒有設定任何 pod resource requests/limits**：design.md 的 Open Question，留到實際觀察用量後再調整。
-- **`Redis` 尚未部署**：`proposal.md` 提到要跟其他資料層一起建起來（給之後 SignalR backplane 用），但 `tasks.md` 目前沒有對應的 task item，這個 change 因此還沒有 Redis 的 manifest。
+- **`Redis` 的 k8s manifest 尚未撰寫**：`proposal.md` 提到要跟其他資料層一起建起來（給 SignalR backplane 用），但 `tasks.md` 當時沒有對應的 task item，一直沒有 Redis 的 k8s manifest。`collab-editing` change 實作 SignalR Hub 時才發現這個落差，先在本機 `docker-compose` 補上 Redis 容器（見下方「本機開發」），k8s manifest 仍待補。
 
 ## 本機開發（docker-compose）
 
@@ -35,13 +35,15 @@ docker compose up -d
 - `postgres`：對應 `infra/k8s/postgres/` 的邏輯，`infra/postgres-init/` 底下的 init script 建立 `app`、`keycloak` 兩個 database（密碼都是明碼 `password`，僅供本機開發用）。
 - `migrate`：用官方 `migrate/migrate` image 對 `app` database 套用 `src/CoNotes.Infrastructure/Persistence/Migrations/`。
 - `keycloak`：`--import-realm` 掛載 `infra/k8s/keycloak/realm-export/`，啟動時自動匯入 `conotes` realm。這組匯入流程（含 `oidc-audience-mapper`）已經用這個版本（`26.7.3`）的 Keycloak 實際驗證過，走過一次完整的 Authorization Code + PKCE 登入拿到 access token、再用這個 token 打通本機 API 的 `/api/v1/notes`。
-- API 本身沒有 Dockerfile，這裡故意不把它放進 docker-compose——用 `dotnet run --project src/CoNotes.Api`，並把 `ConnectionStrings:DefaultConnection`／`Authentication:Authority`／`OpenTelemetry:OtlpEndpoint` 指向這組本機容器/服務即可，例如：
+- `redis`：`collab-editing` change 加的，給 SignalR 的 Redis backplane 用（見上方「已知限制」）。
+- API 本身沒有 Dockerfile，這裡故意不把它放進 docker-compose——用 `dotnet run --project src/CoNotes.Api`，並把 `ConnectionStrings:DefaultConnection`／`Authentication:Authority`／`OpenTelemetry:OtlpEndpoint`／`Redis:ConnectionString` 指向這組本機容器/服務即可，例如：
 
   ```bash
   ASPNETCORE_ENVIRONMENT=Development \
   ConnectionStrings__DefaultConnection="Host=localhost;Database=app;Username=conotes_app;Password=password" \
   Authentication__Authority="http://localhost:8081/realms/conotes" \
   OpenTelemetry__OtlpEndpoint="http://localhost:4318" \
+  Redis__ConnectionString="localhost:6379" \
   dotnet run --project src/CoNotes.Api
   ```
 
